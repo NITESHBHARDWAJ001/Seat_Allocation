@@ -1,0 +1,101 @@
+import type { AllocationResult, AllocationStatus, Room, RuleConfig, Student } from '@exam-allocator/core';
+import { generateId } from '@exam-allocator/core';
+import { checkFeasibility } from './diagnostics/feasibility.js';
+import { solveAllocation } from './solver/solver.js';
+import { optimizeAllocation } from './optimizer/optimizer.js';
+import { validateAllocation } from './validator/validator.js';
+import { makeSeed } from './rng.js';
+
+export const ALGORITHM_VERSION = '1.0.0';
+
+export interface GenerateAllocationParams {
+  examId: string;
+  students: Student[];
+  rooms: Room[];
+  ruleConfig: RuleConfig;
+  seed?: number;
+  version?: number;
+  parentAllocationId?: string;
+}
+
+const BLOCKING_ISSUE_CODES = new Set(['no_students', 'no_rooms', 'no_seats', 'insufficient_seats']);
+
+export function generateAllocation(params: GenerateAllocationParams): AllocationResult {
+  const seed = params.seed ?? makeSeed();
+  const students = params.students.filter((s) => s.active);
+  const rooms = params.rooms.filter((r) => r.enabled);
+
+  const feasibility = checkFeasibility(students, rooms, params.ruleConfig);
+  const blockingIssues = feasibility.issues.filter((i) => BLOCKING_ISSUE_CODES.has(i.code));
+  const shortCircuit = blockingIssues.length > 0 || feasibility.ruleContradictions.length > 0;
+
+  if (shortCircuit) {
+    const validationReport = validateAllocation([], students, rooms, params.ruleConfig);
+    return {
+      id: generateId('alloc'),
+      examId: params.examId,
+      generatedAt: new Date().toISOString(),
+      seed,
+      algorithmVersion: ALGORITHM_VERSION,
+      configSnapshot: params.ruleConfig,
+      studentSnapshot: students,
+      roomSnapshot: rooms,
+      assignments: [],
+      manualOverrides: [],
+      unallocatedStudentIds: students.map((s) => s.id),
+      validationReport,
+      score: 0,
+      status: 'failed',
+      feasibility,
+      relaxedRules: [],
+      version: params.version ?? 1,
+      parentAllocationId: params.parentAllocationId,
+    };
+  }
+
+  const solveResult = solveAllocation(students, rooms, params.ruleConfig, seed);
+  const optimized = optimizeAllocation(solveResult.assignments, students, rooms, params.ruleConfig, seed);
+  const validationReport = validateAllocation(optimized, students, rooms, params.ruleConfig);
+
+  const relaxedRules: string[] = [];
+  if (solveResult.unallocatedStudentIds.length > 0) {
+    relaxedRules.push(
+      `${solveResult.unallocatedStudentIds.length} student(s) could not be seated without breaking a hard constraint (see conflicts/diagnostics); no hard rule was violated to force a placement.`
+    );
+  }
+
+  let status: AllocationStatus = 'success';
+  if (solveResult.unallocatedStudentIds.length > 0 || !validationReport.allHardConstraintsPassed) {
+    status = optimized.length > 0 ? 'partial' : 'failed';
+  }
+
+  return {
+    id: generateId('alloc'),
+    examId: params.examId,
+    generatedAt: new Date().toISOString(),
+    seed,
+    algorithmVersion: ALGORITHM_VERSION,
+    configSnapshot: params.ruleConfig,
+    studentSnapshot: students,
+    roomSnapshot: rooms,
+    assignments: optimized,
+    manualOverrides: [],
+    unallocatedStudentIds: solveResult.unallocatedStudentIds,
+    validationReport,
+    score: validationReport.overallScore,
+    status,
+    feasibility,
+    relaxedRules,
+    version: params.version ?? 1,
+    parentAllocationId: params.parentAllocationId,
+  };
+}
+
+export function revalidate(result: AllocationResult): AllocationResult {
+  const validationReport = validateAllocation(result.assignments, result.studentSnapshot, result.roomSnapshot, result.configSnapshot);
+  let status: AllocationStatus = 'success';
+  if (result.unallocatedStudentIds.length > 0 || !validationReport.allHardConstraintsPassed) {
+    status = result.assignments.length > 0 ? 'partial' : 'failed';
+  }
+  return { ...result, validationReport, score: validationReport.overallScore, status };
+}

@@ -1,0 +1,111 @@
+import type { Assignment, Room, RuleConfig, Seat, Student } from '@exam-allocator/core';
+import { buildSeatGraphs } from '../graph/seatGraph.js';
+import { buildSeatReservations } from '../constraints/distribution.js';
+import { findAdjacencyViolations, hasHardAdjacencyViolation, softAdjacencyPenalty } from '../constraints/adjacency.js';
+import { SeededRandom } from '../rng.js';
+
+/**
+ * Bounded hill-climbing local search: repeatedly proposes swapping two
+ * students' seats and keeps the swap only if it strictly improves the soft
+ * score and introduces no hard-constraint violation. Never changes *who* is
+ * allocated, only *where* — so it cannot regress §H1-H9.
+ */
+export function optimizeAllocation(
+  assignments: Assignment[],
+  students: Student[],
+  rooms: Room[],
+  ruleConfig: RuleConfig,
+  seed: number
+): Assignment[] {
+  if (assignments.length < 2) return assignments;
+
+  const rng = new SeededRandom(seed ^ 0x9e3779b9);
+  const graphs = buildSeatGraphs(rooms);
+  const reservations = buildSeatReservations(rooms, ruleConfig);
+  const seatsById = new Map(rooms.flatMap((r) => r.seats.map((s) => [s.id, s] as const)));
+  const studentsById = new Map(students.map((s) => [s.id, s]));
+  const roomsById = new Map(rooms.map((r) => [r.id, r]));
+
+  const seatAssignedTo = new Map<string, Student>();
+  const studentSeat = new Map<string, Seat>();
+  for (const a of assignments) {
+    const seat = seatsById.get(a.seatId);
+    const student = studentsById.get(a.studentId);
+    if (!seat || !student) continue;
+    seatAssignedTo.set(seat.id, student);
+    studentSeat.set(student.id, seat);
+  }
+  const occupantOf = (seatId: string) => seatAssignedTo.get(seatId);
+
+  function reservationOk(seat: Seat, student: Student): boolean {
+    const allow = reservations.roomAllowList.get(seat.roomId);
+    if (allow && !allow.has(student.branch)) return false;
+    const reservedFor = reservations.reservedBranchBySeat.get(seat.id);
+    if (reservedFor && reservedFor !== student.branch) return false;
+    return true;
+  }
+
+  function costAt(seat: Seat, student: Student): number {
+    const graph = graphs.get(seat.roomId)!;
+    const violations = findAdjacencyViolations(seat, student, graph, occupantOf, ruleConfig.adjacencyRules);
+    let cost = softAdjacencyPenalty(violations) * 1000;
+    if (ruleConfig.branchContinuity.mode === 'preferred') {
+      const room = roomsById.get(seat.roomId)!;
+      const sameBranchInRoom = room.seats.filter((s) => {
+        const occ = occupantOf(s.id);
+        return occ && occ.id !== student.id && occ.branch === student.branch;
+      }).length;
+      cost -= sameBranchInRoom * 2;
+    }
+    return cost;
+  }
+
+  const studentIds = [...studentSeat.keys()];
+  const iterations = Math.min(8000, studentIds.length * 6);
+
+  for (let iter = 0; iter < iterations; iter++) {
+    if (studentIds.length < 2) break;
+    const ia = Math.floor(rng.next() * studentIds.length);
+    let ib = Math.floor(rng.next() * studentIds.length);
+    if (ib === ia) ib = (ib + 1) % studentIds.length;
+
+    const aId = studentIds[ia]!;
+    const bId = studentIds[ib]!;
+    const studentA = studentsById.get(aId)!;
+    const studentB = studentsById.get(bId)!;
+    const seatA = studentSeat.get(aId)!;
+    const seatB = studentSeat.get(bId)!;
+    if (seatA.id === seatB.id) continue;
+
+    if (!reservationOk(seatA, studentB) || !reservationOk(seatB, studentA)) continue;
+
+    const costBefore = costAt(seatA, studentA) + costAt(seatB, studentB);
+
+    seatAssignedTo.set(seatA.id, studentB);
+    seatAssignedTo.set(seatB.id, studentA);
+
+    const violA = findAdjacencyViolations(seatA, studentB, graphs.get(seatA.roomId)!, occupantOf, ruleConfig.adjacencyRules);
+    const violB = findAdjacencyViolations(seatB, studentA, graphs.get(seatB.roomId)!, occupantOf, ruleConfig.adjacencyRules);
+
+    if (hasHardAdjacencyViolation(violA) || hasHardAdjacencyViolation(violB)) {
+      seatAssignedTo.set(seatA.id, studentA);
+      seatAssignedTo.set(seatB.id, studentB);
+      continue;
+    }
+
+    const costAfter = costAt(seatA, studentB) + costAt(seatB, studentA);
+    if (costAfter < costBefore) {
+      studentSeat.set(aId, seatB);
+      studentSeat.set(bId, seatA);
+    } else {
+      seatAssignedTo.set(seatA.id, studentA);
+      seatAssignedTo.set(seatB.id, studentB);
+    }
+  }
+
+  return [...studentSeat.entries()].map(([studentId, seat]) => ({
+    studentId,
+    seatId: seat.id,
+    roomId: seat.roomId,
+  }));
+}

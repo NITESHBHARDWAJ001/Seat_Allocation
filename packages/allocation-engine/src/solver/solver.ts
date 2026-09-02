@@ -1,0 +1,201 @@
+import type { Assignment, Room, RuleConfig, Seat, Student } from '@exam-allocator/core';
+import { SeatGraph, buildSeatGraphs } from '../graph/seatGraph.js';
+import { groupStudents, orderGroupsByConstraint } from '../heuristics/grouping.js';
+import { buildSeatReservations, type SeatReservations } from '../constraints/distribution.js';
+import { findAdjacencyViolations, hasHardAdjacencyViolation, softAdjacencyPenalty } from '../constraints/adjacency.js';
+import { SeededRandom } from '../rng.js';
+
+export interface SolveResult {
+  assignments: Assignment[];
+  unallocatedStudentIds: string[];
+  backtrackSteps: number;
+}
+
+interface ScoredCandidate {
+  seat: Seat;
+  score: number;
+}
+
+interface StackFrame {
+  studentId: string;
+  position: number;
+  seat: Seat;
+  alternatives: ScoredCandidate[];
+}
+
+const MAX_ALTERNATIVES_PER_STUDENT = 15;
+
+/**
+ * Constraint-aware backtracking solver. Expects `rooms` to already be the
+ * exam's eligible, enabled rooms. Never places a student in a seat that
+ * violates a hard (strict) constraint; when no legal seat exists after
+ * exhausting the backtrack budget it reports the student as unallocated
+ * rather than forcing an invalid placement (spec §59: not greedy-only, and
+ * hard constraints must never be broken to satisfy a preference).
+ */
+export function solveAllocation(
+  students: Student[],
+  rooms: Room[],
+  ruleConfig: RuleConfig,
+  seed: number
+): SolveResult {
+  const rng = new SeededRandom(seed);
+  const graphs = buildSeatGraphs(rooms);
+  const reservations = buildSeatReservations(rooms, ruleConfig);
+  const studentsById = new Map(students.map((s) => [s.id, s]));
+
+  const seatAssignedTo = new Map<string, Student>();
+  const occupantOf = (seatId: string): Student | undefined => seatAssignedTo.get(seatId);
+
+  const lastSeatByBranch = new Map<string, Seat>();
+  const branchRoomCounts = new Map<string, Map<string, number>>();
+
+  function isFree(seat: Seat): boolean {
+    return seat.available && !seat.blocked && !seatAssignedTo.has(seat.id);
+  }
+
+  function assign(seat: Seat, student: Student) {
+    seatAssignedTo.set(seat.id, student);
+    lastSeatByBranch.set(student.branch, seat);
+    const m = branchRoomCounts.get(student.branch) ?? new Map<string, number>();
+    m.set(seat.roomId, (m.get(seat.roomId) ?? 0) + 1);
+    branchRoomCounts.set(student.branch, m);
+  }
+
+  function unassign(seat: Seat) {
+    const student = seatAssignedTo.get(seat.id);
+    seatAssignedTo.delete(seat.id);
+    if (student) {
+      const m = branchRoomCounts.get(student.branch);
+      if (m) m.set(seat.roomId, Math.max(0, (m.get(seat.roomId) ?? 1) - 1));
+    }
+  }
+
+  function scoreCandidate(seat: Seat, student: Student, room: Room, graph: SeatGraph): number | null {
+    const allow = reservations.roomAllowList.get(room.id);
+    if (allow && !allow.has(student.branch)) return null; // H9 strict room-branch requirement
+
+    const reservedFor = reservations.reservedBranchBySeat.get(seat.id);
+    if (reservedFor && reservedFor !== student.branch) return null; // H8 strict distribution
+
+    const violations = findAdjacencyViolations(seat, student, graph, occupantOf, ruleConfig.adjacencyRules);
+    if (hasHardAdjacencyViolation(violations)) return null;
+    const softPenalty = softAdjacencyPenalty(violations);
+
+    let score = 0;
+    score -= softPenalty * 1000;
+    score += 1000 - room.priority;
+    if (reservations.roomPreferredBranches.get(room.id)?.has(student.branch)) score += 50;
+    if (reservedFor === student.branch) score += 200;
+
+    if (ruleConfig.rollContinuity.mode !== 'off') {
+      const lastSeat = lastSeatByBranch.get(student.branch);
+      if (lastSeat && lastSeat.roomId === seat.roomId) {
+        const dist = graph.distance(lastSeat, seat);
+        score += (ruleConfig.rollContinuity.mode === 'strict' ? 500 : 150) / (1 + dist);
+      } else if (lastSeat) {
+        score -= ruleConfig.rollContinuity.mode === 'strict' ? 300 : 20;
+      }
+    }
+
+    if (ruleConfig.branchContinuity.mode !== 'off') {
+      const countInRoom = branchRoomCounts.get(student.branch)?.get(room.id) ?? 0;
+      score += countInRoom * (ruleConfig.branchContinuity.mode === 'strict' ? 5 : 2);
+    }
+
+    const seatsInRoom = room.seats.length || 1;
+    const freeInRoom = room.seats.filter(isFree).length;
+    if (ruleConfig.utilizationStrategy === 'compact') {
+      score -= (freeInRoom / seatsInRoom) * 30;
+    } else if (ruleConfig.utilizationStrategy === 'spread') {
+      score += (freeInRoom / seatsInRoom) * 30;
+    }
+
+    score += rng.next() * 0.01;
+    return score;
+  }
+
+  function computeCandidates(student: Student): ScoredCandidate[] {
+    const results: ScoredCandidate[] = [];
+    for (const room of rooms) {
+      if (!room.enabled) continue;
+      const graph = graphs.get(room.id)!;
+      for (const seat of room.seats) {
+        if (!isFree(seat)) continue;
+        const score = scoreCandidate(seat, student, room, graph);
+        if (score !== null) results.push({ seat, score });
+      }
+    }
+    results.sort((a, b) => b.score - a.score);
+    return results.slice(0, MAX_ALTERNATIVES_PER_STUDENT);
+  }
+
+  const groups = orderGroupsByConstraint(groupStudents(students, 'branch'));
+  const placementOrder = groups.flatMap((g) => g.students);
+
+  const stack: StackFrame[] = [];
+  const unallocatedIds = new Set<string>();
+  const maxBacktrackSteps = Math.max(500, students.length * 3);
+  let backtrackBudget = maxBacktrackSteps;
+  let backtrackSteps = 0;
+  let cursor = 0;
+
+  while (cursor < placementOrder.length) {
+    const student = placementOrder[cursor]!;
+    if (unallocatedIds.has(student.id)) {
+      cursor++;
+      continue;
+    }
+
+    const candidates = computeCandidates(student);
+    if (candidates.length > 0) {
+      const chosen = candidates[0]!;
+      assign(chosen.seat, student);
+      stack.push({ studentId: student.id, position: cursor, seat: chosen.seat, alternatives: candidates.slice(1) });
+      cursor++;
+      continue;
+    }
+
+    let resolved = false;
+    while (backtrackBudget > 0 && stack.length > 0) {
+      backtrackBudget--;
+      backtrackSteps++;
+      const top = stack[stack.length - 1]!;
+      unassign(top.seat);
+      if (top.alternatives.length > 0) {
+        const next = top.alternatives.shift()!;
+        const topStudent = studentsById.get(top.studentId)!;
+        assign(next.seat, topStudent);
+        top.seat = next.seat;
+        cursor = top.position + 1;
+        resolved = true;
+        break;
+      }
+      stack.pop();
+      cursor = top.position;
+    }
+
+    if (!resolved) {
+      const stuck = placementOrder[cursor]!;
+      unallocatedIds.add(stuck.id);
+      cursor++;
+    }
+  }
+
+  const assignments: Assignment[] = [];
+  for (const frame of stack) {
+    if (unallocatedIds.has(frame.studentId)) continue;
+    assignments.push({ studentId: frame.studentId, seatId: frame.seat.id, roomId: frame.seat.roomId });
+  }
+  // Any student never reached the stack at all (skipped-and-forgotten edge case) also counts unallocated.
+  const assignedIds = new Set(assignments.map((a) => a.studentId));
+  for (const s of students) {
+    if (!assignedIds.has(s.id)) unallocatedIds.add(s.id);
+  }
+
+  return {
+    assignments,
+    unallocatedStudentIds: [...unallocatedIds],
+    backtrackSteps,
+  };
+}

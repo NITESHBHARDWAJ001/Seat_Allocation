@@ -1,0 +1,21 @@
+{
+  "name": "exam-room-allocator",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspace=packages/allocation-engine",
+    "dev:frontend": "npm run dev --workspace=apps/frontend",
+    "dev:backend": "npm run dev --workspace=apps/backend",
+    "build:frontend": "npm run build --workspace=apps/frontend",
+    "seed": "node scripts/generate-fixtures.mjs",
+    "sync:backend-vendor": "node scripts/sync-backend-vendor.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  }
+}

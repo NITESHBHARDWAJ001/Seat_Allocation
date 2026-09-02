@@ -1,0 +1,130 @@
+export type BlockReason =
+  | 'broken_desk'
+  | 'reserved'
+  | 'damaged_chair'
+  | 'teacher_desk'
+  | 'obstruction'
+  | 'maintenance'
+  | 'special_accommodation'
+  | 'other';
+
+export interface Seat {
+  id: string;
+  roomId: string;
+  row: number;
+  col: number;
+  available: boolean;
+  blocked: boolean;
+  blockedReason?: BlockReason;
+  label?: string;
+}
+
+export interface RoomRow {
+  index: number;
+  seatCount: number;
+}
+
+export type RoomBranchRuleMode = 'strict' | 'preferred' | 'disabled';
+
+export interface RoomBranchRequirement {
+  branch: string;
+  count?: number;
+  mode: RoomBranchRuleMode;
+}
+
+export interface Room {
+  id: string;
+  name: string;
+  building?: string;
+  floor?: string;
+  rows: RoomRow[];
+  seats: Seat[];
+  priority: number;
+  enabled: boolean;
+  branchRequirements?: RoomBranchRequirement[];
+}
+
+export function seatId(roomId: string, row: number, col: number): string {
+  return `${roomId}-R${row}-S${col}`;
+}
+
+export function buildRegularRoom(params: {
+  id: string;
+  name: string;
+  building?: string;
+  floor?: string;
+  rows: number;
+  seatsPerRow: number;
+  priority?: number;
+}): Room {
+  const rows: RoomRow[] = [];
+  const seats: Seat[] = [];
+  for (let r = 1; r <= params.rows; r++) {
+    rows.push({ index: r, seatCount: params.seatsPerRow });
+    for (let c = 1; c <= params.seatsPerRow; c++) {
+      seats.push({
+        id: seatId(params.id, r, c),
+        roomId: params.id,
+        row: r,
+        col: c,
+        available: true,
+        blocked: false,
+      });
+    }
+  }
+  return {
+    id: params.id,
+    name: params.name,
+    building: params.building,
+    floor: params.floor,
+    rows,
+    seats,
+    priority: params.priority ?? 1,
+    enabled: true,
+  };
+}
+
+export function buildIrregularRoom(params: {
+  id: string;
+  name: string;
+  building?: string;
+  floor?: string;
+  rowSeatCounts: number[];
+  priority?: number;
+}): Room {
+  const rows: RoomRow[] = [];
+  const seats: Seat[] = [];
+  params.rowSeatCounts.forEach((count, i) => {
+    const r = i + 1;
+    rows.push({ index: r, seatCount: count });
+    for (let c = 1; c <= count; c++) {
+      seats.push({
+        id: seatId(params.id, r, c),
+        roomId: params.id,
+        row: r,
+        col: c,
+        available: true,
+        blocked: false,
+      });
+    }
+  });
+  return {
+    id: params.id,
+    name: params.name,
+    building: params.building,
+    floor: params.floor,
+    rows,
+    seats,
+    priority: params.priority ?? 1,
+    enabled: true,
+  };
+}
+
+export function roomCapacity(room: Room): number {
+  return room.seats.filter((s) => !s.blocked).length;
+}
+
+export function roomAvailableSeats(room: Room): Seat[] {
+  if (!room.enabled) return [];
+  return room.seats.filter((s) => s.available && !s.blocked);
+}

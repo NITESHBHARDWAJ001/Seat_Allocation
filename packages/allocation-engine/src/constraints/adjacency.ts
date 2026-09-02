@@ -1,0 +1,50 @@
+import { studentGroupKey, type AdjacencyRule, type Seat, type Student } from '@exam-allocator/core';
+import type { SeatGraph } from '../graph/seatGraph.js';
+
+export interface AdjacencyViolation {
+  rule: AdjacencyRule;
+  direction: 'horizontal' | 'vertical' | 'diagonal';
+  neighborSeatId: string;
+  neighborStudentId: string;
+}
+
+export type OccupantLookup = (seatId: string) => Student | undefined;
+
+export function findAdjacencyViolations(
+  seat: Seat,
+  student: Student,
+  graph: SeatGraph,
+  occupantOf: OccupantLookup,
+  rules: AdjacencyRule[]
+): AdjacencyViolation[] {
+  const violations: AdjacencyViolation[] = [];
+  const neighbors = graph.neighborsOf(seat);
+
+  for (const rule of rules) {
+    if (!rule.enabled || rule.mode === 'off') continue;
+    const directional: Array<['horizontal' | 'vertical' | 'diagonal', Seat[]]> = [];
+    if (rule.horizontal) directional.push(['horizontal', neighbors.horizontal]);
+    if (rule.vertical) directional.push(['vertical', neighbors.vertical]);
+    if (rule.diagonal) directional.push(['diagonal', neighbors.diagonal]);
+
+    for (const [direction, neighborSeats] of directional) {
+      for (const neighborSeat of neighborSeats) {
+        const occupant = occupantOf(neighborSeat.id);
+        if (!occupant) continue;
+        if (studentGroupKey(occupant, rule.attribute) === studentGroupKey(student, rule.attribute)) {
+          violations.push({ rule, direction, neighborSeatId: neighborSeat.id, neighborStudentId: occupant.id });
+        }
+      }
+    }
+  }
+
+  return violations;
+}
+
+export function hasHardAdjacencyViolation(violations: AdjacencyViolation[]): boolean {
+  return violations.some((v) => v.rule.mode === 'strict');
+}
+
+export function softAdjacencyPenalty(violations: AdjacencyViolation[]): number {
+  return violations.filter((v) => v.rule.mode === 'preferred').length;
+}
