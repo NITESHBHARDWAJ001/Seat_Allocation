@@ -68,6 +68,18 @@ export default function ExamDetailPage() {
     }
   }, [currentAllocation, activeRoomId]);
 
+  const searchResult = useMemo(() => {
+    if (!search.trim() || !currentAllocation || !exam) return null;
+    const term = search.trim().toLowerCase();
+    const examStudentsForSearch = students.filter((s) => exam.studentIds.includes(s.id));
+    const student = examStudentsForSearch.find((s) => s.rollNumber.toLowerCase() === term || s.rollNumber.toLowerCase().includes(term));
+    if (!student) return null;
+    const assignment = currentAllocation.assignments.find((a) => a.studentId === student.id);
+    const room = assignment ? currentAllocation.roomSnapshot.find((r) => r.id === assignment.roomId) : undefined;
+    const seat = room?.seats.find((s) => s.id === assignment?.seatId);
+    return { student, room, seat };
+  }, [search, currentAllocation, exam, students]);
+
   if (!exam) {
     return (
       <div className="p-6 text-sm text-slate-500">
@@ -173,17 +185,6 @@ export default function ExamDetailPage() {
       setError(`${stillUnseatedStudentIds.length} student(s) could not be reseated after disabling this room.`);
     }
   }
-
-  const searchResult = useMemo(() => {
-    if (!search.trim() || !currentAllocation) return null;
-    const term = search.trim().toLowerCase();
-    const student = examStudents.find((s) => s.rollNumber.toLowerCase() === term || s.rollNumber.toLowerCase().includes(term));
-    if (!student) return null;
-    const assignment = currentAllocation.assignments.find((a) => a.studentId === student.id);
-    const room = assignment ? currentAllocation.roomSnapshot.find((r) => r.id === assignment.roomId) : undefined;
-    const seat = room?.seats.find((s) => s.id === assignment?.seatId);
-    return { student, room, seat };
-  }, [search, currentAllocation, examStudents]);
 
   const unselectedStudents = students.filter((s) => !exam.studentIds.includes(s.id));
   const activeRoom = currentAllocation?.roomSnapshot.find((r) => r.id === activeRoomId);

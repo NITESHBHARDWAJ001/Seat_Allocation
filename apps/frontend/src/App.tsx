@@ -10,6 +10,7 @@ import ExamCreatePage from './pages/ExamCreatePage.js';
 import ExamDetailPage from './pages/ExamDetailPage.js';
 import DutyChartPage from './pages/DutyChartPage.js';
 import HelpPage from './pages/HelpPage.js';
+import SettingsPage from './pages/SettingsPage.js';
 
 const navItems = [
   { to: '/', label: 'Dashboard', end: true },
@@ -19,6 +20,7 @@ const navItems = [
   { to: '/exams', label: 'Exams' },
   { to: '/duty-chart', label: 'Duty Chart' },
   { to: '/help', label: 'Help' },
+  { to: '/settings', label: 'Settings' },
 ];
 
 export default function App() {
@@ -63,6 +65,7 @@ export default function App() {
           <Route path="/exams/:examId" element={<ExamDetailPage />} />
           <Route path="/duty-chart" element={<DutyChartPage />} />
           <Route path="/help" element={<HelpPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>
     </div>
