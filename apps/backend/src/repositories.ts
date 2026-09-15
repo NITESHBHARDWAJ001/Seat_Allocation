@@ -2,18 +2,22 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import {
   MemoryAllocationRepository,
+  MemoryDutyRosterRepository,
   MemoryExamRepository,
   MemoryRoomRepository,
   MemorySettingsRepository,
   MemoryStudentRepository,
+  MemoryTeacherRepository,
 } from './vendor/memory-repositories/index.js';
 import { createGoogleSheetsRepositories } from './vendor/googlesheets-repositories/index.js';
 import type {
   AllocationRepository,
+  DutyRosterRepository,
   ExamRepository,
   RoomRepository,
   SettingsRepository,
   StudentRepository,
+  TeacherRepository,
 } from './vendor/core/index.js';
 
 /**
@@ -32,6 +36,8 @@ let roomRepository: RoomRepository;
 let examRepository: ExamRepository;
 let allocationRepository: AllocationRepository;
 let settingsRepository: SettingsRepository;
+let teacherRepository: TeacherRepository;
+let dutyRosterRepository: DutyRosterRepository;
 
 if (backend === 'sheets') {
   const repos = createGoogleSheetsRepositories();
@@ -40,6 +46,8 @@ if (backend === 'sheets') {
   examRepository = repos.examRepository;
   allocationRepository = repos.allocationRepository;
   settingsRepository = repos.settingsRepository;
+  teacherRepository = repos.teacherRepository;
+  dutyRosterRepository = repos.dutyRosterRepository;
   console.log('[data backend] Google Sheets');
 } else {
   const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -51,7 +59,9 @@ if (backend === 'sheets') {
   examRepository = new MemoryExamRepository(join(dataDir, 'exams.json'));
   allocationRepository = new MemoryAllocationRepository(join(dataDir, 'allocations.json'));
   settingsRepository = new MemorySettingsRepository(join(dataDir, 'settings.json'));
+  teacherRepository = new MemoryTeacherRepository(join(dataDir, 'teachers.json'));
+  dutyRosterRepository = new MemoryDutyRosterRepository(join(dataDir, 'dutyRosters.json'));
   console.log(`[data backend] JSON files (${dataDir})`);
 }
 
-export { studentRepository, roomRepository, examRepository, allocationRepository, settingsRepository };
+export { studentRepository, roomRepository, examRepository, allocationRepository, settingsRepository, teacherRepository, dutyRosterRepository };

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { AllocationResult, RuleConfig } from '../vendor/core/index.js';
+import type { AllocationResult, RuleConfig, SubjectAssignment } from '../vendor/core/index.js';
 import { checkFeasibility } from '../vendor/allocation-engine/index.js';
 import {
   addStudentToAllocation,
@@ -20,10 +20,12 @@ import ValidationPanel from '../features/allocation/ValidationPanel.js';
 import ConflictList from '../features/allocation/ConflictList.js';
 import SeatingMap from '../features/allocation/SeatingMap.js';
 import ReportsPanel from '../features/allocation/ReportsPanel.js';
+import SubjectAssignmentEditor from '../features/exam/SubjectAssignmentEditor.js';
+import DutyRosterPanel from '../features/duty/DutyRosterPanel.js';
 
 export default function ExamDetailPage() {
   const { examId } = useParams();
-  const { students, rooms, exams, refreshExams } = useAppData();
+  const { students, rooms, exams, teachers, dutyRosters, refreshExams, refreshDutyRosters } = useAppData();
   const exam = exams.find((e) => e.id === examId);
 
   const [allocations, setAllocations] = useState<AllocationResult[]>([]);
@@ -36,6 +38,7 @@ export default function ExamDetailPage() {
   const [pendingOverride, setPendingOverride] = useState<{ studentId: string; seatId: string; preview: ManualOverridePreview } | null>(null);
   const [addStudentId, setAddStudentId] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [showSubjects, setShowSubjects] = useState(false);
 
   useEffect(() => {
     if (exam) setRuleConfig((prev) => prev ?? exam.ruleConfig);
@@ -82,6 +85,15 @@ export default function ExamDetailPage() {
     await examRepository.update(exam!.id, { ruleConfig });
     await refreshExams();
     setShowRules(false);
+  }
+
+  async function handleSubjectsChange(next: SubjectAssignment[]) {
+    await examRepository.update(exam!.id, { subjectAssignments: next });
+    await refreshExams();
+  }
+
+  async function handleDutyRosterChange() {
+    await Promise.all([refreshExams(), refreshDutyRosters()]);
   }
 
   async function handleGenerate() {
@@ -175,6 +187,7 @@ export default function ExamDetailPage() {
 
   const unselectedStudents = students.filter((s) => !exam.studentIds.includes(s.id));
   const activeRoom = currentAllocation?.roomSnapshot.find((r) => r.id === activeRoomId);
+  const activeDutyRoster = dutyRosters.filter((r) => r.examId === exam.id).find((r) => r.id === exam.activeDutyRosterId);
 
   return (
     <div>
@@ -183,6 +196,9 @@ export default function ExamDetailPage() {
         subtitle={`${exam.date} · ${exam.startTime}–${exam.endTime} · ${examStudents.length} students · ${examRooms.length} rooms`}
         actions={
           <>
+            <button className="btn-secondary" onClick={() => setShowSubjects((v) => !v)}>
+              {showSubjects ? 'Hide Subjects' : 'Edit Subjects'}
+            </button>
             <button className="btn-secondary" onClick={() => setShowRules((v) => !v)}>
               {showRules ? 'Hide Rules' : 'Edit Rules'}
             </button>
@@ -226,6 +242,13 @@ export default function ExamDetailPage() {
           </div>
         )}
 
+        {showSubjects && (
+          <div className="card p-4">
+            <h2 className="text-sm font-semibold text-slate-800 mb-3">Subjects Per Group</h2>
+            <SubjectAssignmentEditor value={exam.subjectAssignments} onChange={handleSubjectsChange} students={examStudents} />
+          </div>
+        )}
+
         {showRules && ruleConfig && (
           <div className="card p-4">
             <h2 className="text-sm font-semibold text-slate-800 mb-3">Allocation Rules</h2>
@@ -237,6 +260,16 @@ export default function ExamDetailPage() {
             </div>
           </div>
         )}
+
+        <DutyRosterPanel
+          exam={exam}
+          rooms={examRooms.filter((r) => r.enabled)}
+          teachers={teachers}
+          seatAllocation={currentAllocation}
+          allExams={exams}
+          allDutyRosters={dutyRosters}
+          onRosterChange={handleDutyRosterChange}
+        />
 
         {!currentAllocation && !showRules && (
           <div className="card p-8 text-center text-sm text-slate-500">
@@ -350,6 +383,7 @@ export default function ExamDetailPage() {
                   students={students}
                   onSeatClick={handleSeatClick}
                   highlightStudentId={moveStudentId ?? searchResult?.student.id}
+                  subjectAssignments={exam.subjectAssignments}
                 />
               )}
             </div>
@@ -390,7 +424,16 @@ export default function ExamDetailPage() {
               )}
             </div>
 
-            <ReportsPanel allocation={currentAllocation} students={students} rooms={currentAllocation.roomSnapshot} examName={exam.name} examDate={exam.date} />
+            <ReportsPanel
+              allocation={currentAllocation}
+              students={students}
+              rooms={currentAllocation.roomSnapshot}
+              examName={exam.name}
+              examDate={exam.date}
+              subjectAssignments={exam.subjectAssignments}
+              dutyRoster={activeDutyRoster}
+              teachers={teachers}
+            />
           </>
         )}
       </div>

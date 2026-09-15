@@ -4,15 +4,21 @@ import DashboardPage from './pages/DashboardPage.js';
 import StudentsPage from './pages/StudentsPage.js';
 import RoomsPage from './pages/RoomsPage.js';
 import RoomLayoutPage from './pages/RoomLayoutPage.js';
+import TeachersPage from './pages/TeachersPage.js';
 import ExamsPage from './pages/ExamsPage.js';
 import ExamCreatePage from './pages/ExamCreatePage.js';
 import ExamDetailPage from './pages/ExamDetailPage.js';
+import DutyChartPage from './pages/DutyChartPage.js';
+import HelpPage from './pages/HelpPage.js';
 
 const navItems = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/students', label: 'Students' },
   { to: '/rooms', label: 'Rooms' },
+  { to: '/teachers', label: 'Teachers' },
   { to: '/exams', label: 'Exams' },
+  { to: '/duty-chart', label: 'Duty Chart' },
+  { to: '/help', label: 'Help' },
 ];
 
 export default function App() {
@@ -51,9 +57,12 @@ export default function App() {
           <Route path="/students" element={<StudentsPage />} />
           <Route path="/rooms" element={<RoomsPage />} />
           <Route path="/rooms/:roomId" element={<RoomLayoutPage />} />
+          <Route path="/teachers" element={<TeachersPage />} />
           <Route path="/exams" element={<ExamsPage />} />
           <Route path="/exams/new" element={<ExamCreatePage />} />
           <Route path="/exams/:examId" element={<ExamDetailPage />} />
+          <Route path="/duty-chart" element={<DutyChartPage />} />
+          <Route path="/help" element={<HelpPage />} />
         </Routes>
       </main>
     </div>

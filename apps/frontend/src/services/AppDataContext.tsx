@@ -1,16 +1,20 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import type { Exam, Room, Student } from '../vendor/core/index.js';
-import { examRepository, roomRepository, studentRepository } from './repositories.js';
+import type { DutyRoster, Exam, Room, Student, Teacher } from '../vendor/core/index.js';
+import { dutyRosterRepository, examRepository, roomRepository, studentRepository, teacherRepository } from './repositories.js';
 
 interface AppDataState {
   students: Student[];
   rooms: Room[];
   exams: Exam[];
+  teachers: Teacher[];
+  dutyRosters: DutyRoster[];
   loading: boolean;
   error: string | null;
   refreshStudents: () => Promise<void>;
   refreshRooms: () => Promise<void>;
   refreshExams: () => Promise<void>;
+  refreshTeachers: () => Promise<void>;
+  refreshDutyRosters: () => Promise<void>;
   refreshAll: () => Promise<void>;
 }
 
@@ -20,6 +24,8 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const [students, setStudents] = useState<Student[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [dutyRosters, setDutyRosters] = useState<DutyRoster[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,20 +53,64 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const refreshTeachers = useCallback(async () => {
+    try {
+      setTeachers(await teacherRepository.getAll());
+    } catch (e) {
+      setError(`Could not load teachers from local storage: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }, []);
+
+  const refreshDutyRosters = useCallback(async () => {
+    try {
+      setDutyRosters(await dutyRosterRepository.getAll());
+    } catch (e) {
+      setError(`Could not load duty rosters from local storage: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }, []);
+
   const refreshAll = useCallback(async () => {
     setLoading(true);
     setError(null);
-    await Promise.all([refreshStudents(), refreshRooms(), refreshExams()]);
+    await Promise.all([refreshStudents(), refreshRooms(), refreshExams(), refreshTeachers(), refreshDutyRosters()]);
     setLoading(false);
-  }, [refreshStudents, refreshRooms, refreshExams]);
+  }, [refreshStudents, refreshRooms, refreshExams, refreshTeachers, refreshDutyRosters]);
 
   useEffect(() => {
     refreshAll();
   }, [refreshAll]);
 
   const value = useMemo(
-    () => ({ students, rooms, exams, loading, error, refreshStudents, refreshRooms, refreshExams, refreshAll }),
-    [students, rooms, exams, loading, error, refreshStudents, refreshRooms, refreshExams, refreshAll]
+    () => ({
+      students,
+      rooms,
+      exams,
+      teachers,
+      dutyRosters,
+      loading,
+      error,
+      refreshStudents,
+      refreshRooms,
+      refreshExams,
+      refreshTeachers,
+      refreshDutyRosters,
+      refreshAll,
+    }),
+    [
+      students,
+      rooms,
+      exams,
+      teachers,
+      dutyRosters,
+      loading,
+      error,
+      refreshStudents,
+      refreshRooms,
+      refreshExams,
+      refreshTeachers,
+      refreshDutyRosters,
+      refreshAll,
+    ]
   );
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;

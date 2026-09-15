@@ -5,11 +5,12 @@ import PageHeader from '../components/PageHeader.js';
 import StatTile from '../components/StatTile.js';
 
 export default function DashboardPage() {
-  const { students, rooms, exams, loading } = useAppData();
+  const { students, rooms, exams, teachers, loading } = useAppData();
 
   const activeStudents = students.filter((s) => s.active).length;
   const totalSeats = rooms.reduce((sum, r) => sum + roomAvailableSeats(r).length, 0);
   const enabledRooms = rooms.filter((r) => r.enabled).length;
+  const activeTeachers = teachers.filter((t) => t.active).length;
 
   return (
     <div>
@@ -19,10 +20,11 @@ export default function DashboardPage() {
           <div className="text-sm text-slate-500">Loading local data...</div>
         ) : (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <StatTile label="Students" value={activeStudents} />
               <StatTile label="Available Seats" value={totalSeats} />
               <StatTile label="Rooms" value={`${enabledRooms}/${rooms.length}`} />
+              <StatTile label="Teachers" value={activeTeachers} />
               <StatTile label="Exams" value={exams.length} />
             </div>
 

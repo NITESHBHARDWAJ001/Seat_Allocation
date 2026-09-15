@@ -4,6 +4,8 @@ import type { Student } from '../models/student.js';
 import type { Room } from '../models/room.js';
 import type { Exam } from '../models/exam.js';
 import type { AllocationResult } from '../models/allocation.js';
+import type { Teacher } from '../models/teacher.js';
+import type { DutyRoster } from '../models/duty.js';
 
 export interface StudentQuery {
   branch?: string;
@@ -54,4 +56,22 @@ export interface SettingsRepository {
   get<T = unknown>(key: string): Promise<T | undefined>;
   set<T = unknown>(key: string, value: T): Promise<void>;
   remove(key: string): Promise<void>;
+}
+
+export interface TeacherRepository {
+  getAll(): Promise<Teacher[]>;
+  getById(id: string): Promise<Teacher | undefined>;
+  create(teacher: Teacher): Promise<Teacher>;
+  createMany(teachers: Teacher[]): Promise<Teacher[]>;
+  update(id: string, patch: Partial<Teacher>): Promise<Teacher>;
+  remove(id: string): Promise<void>;
+}
+
+export interface DutyRosterRepository {
+  getAll(): Promise<DutyRoster[]>;
+  getById(id: string): Promise<DutyRoster | undefined>;
+  getByExamId(examId: string): Promise<DutyRoster[]>;
+  create(roster: DutyRoster): Promise<DutyRoster>;
+  update(id: string, patch: Partial<DutyRoster>): Promise<DutyRoster>;
+  remove(id: string): Promise<void>;
 }

@@ -4,3 +4,6 @@ export * from './ruleConfig.js';
 export * from './exam.js';
 export * from './validation.js';
 export * from './allocation.js';
+export * from './teacher.js';
+export * from './subject.js';
+export * from './duty.js';

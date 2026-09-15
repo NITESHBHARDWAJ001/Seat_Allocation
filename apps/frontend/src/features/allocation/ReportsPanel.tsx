@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { AllocationResult, Room, Student } from '../../vendor/core/index.js';
+import type { AllocationResult, DutyRoster, Room, Student, SubjectAssignment, Teacher } from '../../vendor/core/index.js';
 import { allocationReportRows, buildPrintableRoomSheet, exportAllocationCsv, exportAllocationJson, printHtml } from '../../services/exportService.js';
 
 export default function ReportsPanel({
@@ -8,15 +8,21 @@ export default function ReportsPanel({
   rooms,
   examName,
   examDate,
+  subjectAssignments = [],
+  dutyRoster,
+  teachers = [],
 }: {
   allocation: AllocationResult;
   students: Student[];
   rooms: Room[];
   examName: string;
   examDate: string;
+  subjectAssignments?: SubjectAssignment[];
+  dutyRoster?: DutyRoster;
+  teachers?: Teacher[];
 }) {
   const [search, setSearch] = useState('');
-  const rows = useMemo(() => allocationReportRows(allocation, students, rooms), [allocation, students, rooms]);
+  const rows = useMemo(() => allocationReportRows(allocation, students, rooms, subjectAssignments), [allocation, students, rooms, subjectAssignments]);
   const filteredRows = useMemo(() => {
     if (!search.trim()) return rows;
     const term = search.toLowerCase();
@@ -34,6 +40,13 @@ export default function ReportsPanel({
   }, [rows]);
 
   const usedRooms = rooms.filter((r) => allocation.assignments.some((a) => a.roomId === r.id));
+  const hasSubjects = subjectAssignments.length > 0;
+  const teachersById = useMemo(() => new Map(teachers.map((t) => [t.id, t])), [teachers]);
+
+  function invigilatorNamesFor(roomId: string): string[] {
+    if (!dutyRoster) return [];
+    return dutyRoster.assignments.filter((a) => a.roomId === roomId).map((a) => teachersById.get(a.teacherId)?.name ?? a.teacherId);
+  }
 
   return (
     <div className="space-y-4">
@@ -42,7 +55,7 @@ export default function ReportsPanel({
           <h2 className="text-sm font-semibold text-slate-800">Student-wise Allocation Report</h2>
           <div className="flex gap-2">
             <input className="input w-56" placeholder="Search roll number or name..." value={search} onChange={(e) => setSearch(e.target.value)} />
-            <button className="btn-secondary" onClick={() => exportAllocationCsv(allocation, students, rooms, examName)}>
+            <button className="btn-secondary" onClick={() => exportAllocationCsv(allocation, students, rooms, examName, subjectAssignments)}>
               Export CSV
             </button>
             <button className="btn-secondary" onClick={() => exportAllocationJson(allocation, examName)}>
@@ -61,6 +74,7 @@ export default function ReportsPanel({
                 <th>Section</th>
                 <th>Room</th>
                 <th>Seat</th>
+                {hasSubjects && <th>Subject</th>}
               </tr>
             </thead>
             <tbody>
@@ -73,11 +87,12 @@ export default function ReportsPanel({
                   <td>{r.section}</td>
                   <td>{r.room}</td>
                   <td>{r.seatLabel}</td>
+                  {hasSubjects && <td>{r.subject || '—'}</td>}
                 </tr>
               ))}
               {filteredRows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="text-center text-slate-400 py-6">
+                  <td colSpan={hasSubjects ? 8 : 7} className="text-center text-slate-400 py-6">
                     No matches.
                   </td>
                 </tr>
@@ -129,6 +144,8 @@ export default function ReportsPanel({
                     room,
                     students,
                     assignments: allocation.assignments,
+                    invigilatorNames: invigilatorNamesFor(room.id),
+                    subjectAssignments,
                   })
                 )
               }

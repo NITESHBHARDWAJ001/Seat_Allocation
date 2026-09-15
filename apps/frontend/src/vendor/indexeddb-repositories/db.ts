@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { AllocationResult, Exam, Room, Student } from '../core/index.js';
+import type { AllocationResult, DutyRoster, Exam, Room, Student, Teacher } from '../core/index.js';
 
 export interface ImportRecord {
   id: string;
@@ -42,10 +42,20 @@ export interface ExamAllocatorDB extends DBSchema {
     key: string;
     value: ImportRecord;
   };
+  teachers: {
+    key: string;
+    value: Teacher;
+    indexes: { branch: string };
+  };
+  dutyRosters: {
+    key: string;
+    value: DutyRoster;
+    indexes: { examId: string };
+  };
 }
 
 const DB_NAME = 'exam-allocator-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase<ExamAllocatorDB>> | null = null;
 
@@ -82,6 +92,14 @@ export function getDb(): Promise<IDBPDatabase<ExamAllocatorDB>> {
         }
         if (!db.objectStoreNames.contains('imports')) {
           db.createObjectStore('imports', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('teachers')) {
+          const store = db.createObjectStore('teachers', { keyPath: 'id' });
+          store.createIndex('branch', 'branch');
+        }
+        if (!db.objectStoreNames.contains('dutyRosters')) {
+          const store = db.createObjectStore('dutyRosters', { keyPath: 'id' });
+          store.createIndex('examId', 'examId');
         }
       },
       blocked() {

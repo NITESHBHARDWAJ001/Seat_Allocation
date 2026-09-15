@@ -11,3 +11,7 @@ export * from './scoring/scorer.js';
 export * from './engine.js';
 export * from './incremental.js';
 export * from './rng.js';
+export * from './duty/dutyAllocator.js';
+export * from './duty/dutyValidator.js';
+export * from './duty/incrementalDuty.js';
+export * from './subjects/subjectAssignment.js';

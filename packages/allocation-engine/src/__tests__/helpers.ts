@@ -1,4 +1,4 @@
-import { buildIrregularRoom, buildRegularRoom, defaultRuleConfig, type Room, type RuleConfig, type Student } from '@exam-allocator/core';
+import { buildIrregularRoom, buildRegularRoom, defaultRuleConfig, type Room, type RuleConfig, type Student, type Teacher } from '@exam-allocator/core';
 
 export function makeStudent(overrides: Partial<Student> & { id: string; rollNumber: string; branch: string }): Student {
   return {
@@ -36,4 +36,12 @@ export function makeIrregularRoom(id: string, rowSeatCounts: number[]): Room {
 
 export function baseRuleConfig(): RuleConfig {
   return defaultRuleConfig();
+}
+
+export function makeTeachers(count: number, branch: string, prefix: string): Teacher[] {
+  const teachers: Teacher[] = [];
+  for (let i = 1; i <= count; i++) {
+    teachers.push({ id: `${prefix}-${i}`, name: `${prefix} Teacher ${i}`, branch, active: true });
+  }
+  return teachers;
 }

@@ -1,9 +1,11 @@
 import {
   IndexedDbAllocationRepository,
+  IndexedDbDutyRosterRepository,
   IndexedDbExamRepository,
   IndexedDbRoomRepository,
   IndexedDbSettingsRepository,
   IndexedDbStudentRepository,
+  IndexedDbTeacherRepository,
 } from '../vendor/indexeddb-repositories/index.js';
 
 /**
@@ -16,3 +18,5 @@ export const roomRepository = new IndexedDbRoomRepository();
 export const examRepository = new IndexedDbExamRepository();
 export const allocationRepository = new IndexedDbAllocationRepository();
 export const settingsRepository = new IndexedDbSettingsRepository();
+export const teacherRepository = new IndexedDbTeacherRepository();
+export const dutyRosterRepository = new IndexedDbDutyRosterRepository();

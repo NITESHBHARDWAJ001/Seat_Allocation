@@ -1,0 +1,31 @@
+import type { SubjectAssignment } from '@exam-allocator/core';
+
+export function resolveSubjectForGroup(branch: string, year: number, assignments: SubjectAssignment[]): SubjectAssignment | undefined {
+  return assignments.find((a) => a.branch === branch && a.year === year);
+}
+
+export interface SubjectConflict {
+  branch: string;
+  year: number;
+  subjectNames: string[];
+}
+
+/** Flags when the same branch+year has two different subjects assigned. */
+export function detectSubjectConflicts(assignments: SubjectAssignment[]): SubjectConflict[] {
+  const groups = new Map<string, SubjectAssignment[]>();
+  for (const a of assignments) {
+    const key = `${a.branch}|${a.year}`;
+    const list = groups.get(key) ?? [];
+    list.push(a);
+    groups.set(key, list);
+  }
+  const conflicts: SubjectConflict[] = [];
+  for (const list of groups.values()) {
+    const distinctSubjects = [...new Set(list.map((a) => a.subjectName))];
+    if (distinctSubjects.length > 1) {
+      const first = list[0]!;
+      conflicts.push({ branch: first.branch, year: first.year, subjectNames: distinctSubjects });
+    }
+  }
+  return conflicts;
+}

@@ -1,10 +1,13 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../services/AppDataContext.js';
 import { examRepository } from '../services/repositories.js';
 import PageHeader from '../components/PageHeader.js';
+import DatesheetImportPanel from '../features/exam/DatesheetImportPanel.js';
 
 export default function ExamsPage() {
-  const { exams, refreshExams } = useAppData();
+  const { exams, students, refreshExams } = useAppData();
+  const [showDatesheet, setShowDatesheet] = useState(false);
 
   async function remove(id: string) {
     if (!confirm('Delete this exam? This does not delete students or rooms.')) return;
@@ -18,12 +21,27 @@ export default function ExamsPage() {
         title="Exams"
         subtitle={`${exams.length} total`}
         actions={
-          <Link to="/exams/new" className="btn-primary">
-            New Exam
-          </Link>
+          <>
+            <button className="btn-secondary" onClick={() => setShowDatesheet((v) => !v)}>
+              {showDatesheet ? 'Hide Datesheet Import' : 'Import Datesheet'}
+            </button>
+            <Link to="/exams/new" className="btn-primary">
+              New Exam
+            </Link>
+          </>
         }
       />
-      <div className="p-6">
+      <div className="p-6 space-y-4">
+        {showDatesheet && (
+          <DatesheetImportPanel
+            students={students}
+            onImported={async () => {
+              await refreshExams();
+              setShowDatesheet(false);
+            }}
+          />
+        )}
+
         <div className="card overflow-x-auto">
           <table className="table-base">
             <thead>

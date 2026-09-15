@@ -29,7 +29,9 @@ examsRouter.post('/', async (req, res) => {
     studentIds: Array.isArray(body.studentIds) ? body.studentIds : [],
     roomIds: Array.isArray(body.roomIds) ? body.roomIds : [],
     ruleConfig: body.ruleConfig ?? defaultRuleConfig(),
+    subjectAssignments: Array.isArray(body.subjectAssignments) ? body.subjectAssignments : [],
     allocationIds: [],
+    dutyRosterIds: [],
     createdAt: now,
     updatedAt: now,
   });

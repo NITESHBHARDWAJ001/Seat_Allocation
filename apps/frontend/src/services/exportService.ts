@@ -1,4 +1,5 @@
-import type { AllocationResult, Room, Student } from '../vendor/core/index.js';
+import type { AllocationResult, Room, Student, SubjectAssignment } from '../vendor/core/index.js';
+import { resolveSubjectForGroup } from '../vendor/allocation-engine/index.js';
 
 /**
  * Export is deliberately decoupled from the UI (spec §53): every function
@@ -31,7 +32,7 @@ export function downloadTextFile(filename: string, content: string, mimeType: st
   URL.revokeObjectURL(url);
 }
 
-export function allocationReportRows(result: AllocationResult, students: Student[], rooms: Room[]) {
+export function allocationReportRows(result: AllocationResult, students: Student[], rooms: Room[], subjectAssignments: SubjectAssignment[] = []) {
   const studentsById = new Map(students.map((s) => [s.id, s]));
   const roomsById = new Map(rooms.map((r) => [r.id, r]));
   const seatsById = new Map(rooms.flatMap((r) => r.seats.map((s) => [s.id, s] as const)));
@@ -42,6 +43,7 @@ export function allocationReportRows(result: AllocationResult, students: Student
       const room = roomsById.get(a.roomId);
       const seat = seatsById.get(a.seatId);
       if (!student || !room || !seat) return null;
+      const subject = resolveSubjectForGroup(student.branch, student.year, subjectAssignments);
       return {
         rollNumber: student.rollNumber,
         name: student.name,
@@ -52,17 +54,31 @@ export function allocationReportRows(result: AllocationResult, students: Student
         row: seat.row,
         seat: seat.col,
         seatLabel: seat.label ?? `R${seat.row}-S${seat.col}`,
+        subject: subject?.subjectName ?? '',
       };
     })
     .filter((r): r is NonNullable<typeof r> => !!r)
     .sort((a, b) => a.rollNumber.localeCompare(b.rollNumber));
 }
 
-export function exportAllocationCsv(result: AllocationResult, students: Student[], rooms: Room[], examName: string): void {
-  const rows = allocationReportRows(result, students, rooms);
+export function exportAllocationCsv(
+  result: AllocationResult,
+  students: Student[],
+  rooms: Room[],
+  examName: string,
+  subjectAssignments: SubjectAssignment[] = []
+): void {
+  const rows = allocationReportRows(result, students, rooms, subjectAssignments);
+  const hasSubjects = subjectAssignments.length > 0;
+  const headers = ['Roll Number', 'Name', 'Branch', 'Year', 'Section', 'Room', 'Row', 'Seat', 'Seat Label'];
+  if (hasSubjects) headers.push('Subject');
   const csv = toCsv(
-    ['Roll Number', 'Name', 'Branch', 'Year', 'Section', 'Room', 'Row', 'Seat', 'Seat Label'],
-    rows.map((r) => [r.rollNumber, r.name, r.branch, r.year, r.section, r.room, r.row, r.seat, r.seatLabel])
+    headers,
+    rows.map((r) => {
+      const row: (string | number)[] = [r.rollNumber, r.name, r.branch, r.year, r.section, r.room, r.row, r.seat, r.seatLabel];
+      if (hasSubjects) row.push(r.subject);
+      return row;
+    })
   );
   downloadTextFile(`${examName.replace(/\s+/g, '_')}_allocation.csv`, csv, 'text/csv;charset=utf-8');
 }
@@ -90,8 +106,10 @@ export function buildPrintableRoomSheet(params: {
   room: Room;
   students: Student[];
   assignments: AllocationResult['assignments'];
+  invigilatorNames?: string[];
+  subjectAssignments?: SubjectAssignment[];
 }): string {
-  const { collegeName, examName, examDate, room, students, assignments } = params;
+  const { collegeName, examName, examDate, room, students, assignments, invigilatorNames = [], subjectAssignments = [] } = params;
   const studentsById = new Map(students.map((s) => [s.id, s]));
   const seatToStudent = new Map(
     assignments.filter((a) => a.roomId === room.id).map((a) => [a.seatId, studentsById.get(a.studentId)] as const)
@@ -121,6 +139,17 @@ export function buildPrintableRoomSheet(params: {
 
   const total = [...seatToStudent.values()].filter(Boolean).length;
 
+  const branchYearsInRoom = new Set(
+    [...seatToStudent.values()].filter((s): s is Student => !!s).map((s) => `${s.branch}|${s.year}`)
+  );
+  const subjectsInRoom = subjectAssignments.filter((a) => branchYearsInRoom.has(`${a.branch}|${a.year}`));
+  const subjectsLine =
+    subjectsInRoom.length > 0
+      ? subjectsInRoom.map((s) => `${escapeHtml(s.branch)}-Y${s.year}: ${escapeHtml(s.subjectName)}`).join(' &nbsp;|&nbsp; ')
+      : '';
+
+  const invigilatorLine = invigilatorNames.length > 0 ? escapeHtml(invigilatorNames.join(', ')) : '______________________';
+
   return `<!doctype html>
 <html><head><meta charset="utf-8" /><title>${escapeHtml(room.name)} — Seating Plan</title>
 <style>
@@ -142,10 +171,11 @@ export function buildPrintableRoomSheet(params: {
     <strong>Room:</strong> ${escapeHtml(room.name)} &nbsp;|&nbsp;
     <strong>Date:</strong> ${escapeHtml(examDate)} &nbsp;|&nbsp;
     <strong>Total students:</strong> ${total}
+    ${subjectsLine ? `<br/><strong>Subjects:</strong> ${subjectsLine}` : ''}
   </div>
   <table>${rowsHtml}</table>
   <div class="footer">
-    <span>Invigilator: ______________________</span>
+    <span>Invigilator: ${invigilatorLine}</span>
     <span>Signature: ______________________</span>
   </div>
 </body></html>`;

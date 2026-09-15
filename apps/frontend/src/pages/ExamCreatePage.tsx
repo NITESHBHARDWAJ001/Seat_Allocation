@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { defaultRuleConfig, generateId } from '../vendor/core/index.js';
+import { defaultRuleConfig, generateId, type SubjectAssignment } from '../vendor/core/index.js';
 import { useAppData } from '../services/AppDataContext.js';
 import { examRepository } from '../services/repositories.js';
 import PageHeader from '../components/PageHeader.js';
 import RuleConfigEditor from '../components/RuleConfigEditor.js';
+import SubjectAssignmentEditor from '../features/exam/SubjectAssignmentEditor.js';
 
 export default function ExamCreatePage() {
   const { students, rooms, refreshExams } = useAppData();
@@ -17,6 +18,7 @@ export default function ExamCreatePage() {
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [selectedRooms, setSelectedRooms] = useState<Set<string>>(new Set());
   const [ruleConfig, setRuleConfig] = useState(defaultRuleConfig());
+  const [subjectAssignments, setSubjectAssignments] = useState<SubjectAssignment[]>([]);
   const [branchFilter, setBranchFilter] = useState('');
   const [yearFilter, setYearFilter] = useState('');
 
@@ -65,7 +67,9 @@ export default function ExamCreatePage() {
       studentIds: [...selectedStudents],
       roomIds: [...selectedRooms],
       ruleConfig,
+      subjectAssignments,
       allocationIds: [],
+      dutyRosterIds: [],
       createdAt: now,
       updatedAt: now,
     });
@@ -153,6 +157,15 @@ export default function ExamCreatePage() {
             ))}
             {rooms.length === 0 && <div className="text-sm text-slate-400">No rooms available.</div>}
           </div>
+        </div>
+
+        <div className="card p-4">
+          <h2 className="text-sm font-semibold text-slate-800 mb-3">Subjects Per Group (optional)</h2>
+          <SubjectAssignmentEditor
+            value={subjectAssignments}
+            onChange={setSubjectAssignments}
+            students={students.filter((s) => selectedStudents.has(s.id))}
+          />
         </div>
 
         <div className="card p-4">

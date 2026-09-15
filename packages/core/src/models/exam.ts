@@ -1,4 +1,5 @@
 import type { RuleConfig } from './ruleConfig.js';
+import type { SubjectAssignment } from './subject.js';
 
 export interface Exam {
   id: string;
@@ -9,8 +10,11 @@ export interface Exam {
   studentIds: string[];
   roomIds: string[];
   ruleConfig: RuleConfig;
+  subjectAssignments: SubjectAssignment[];
   allocationIds: string[];
   activeAllocationId?: string;
+  dutyRosterIds: string[];
+  activeDutyRosterId?: string;
   createdAt: string;
   updatedAt: string;
 }

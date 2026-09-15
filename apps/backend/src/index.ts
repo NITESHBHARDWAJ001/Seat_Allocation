@@ -5,6 +5,8 @@ import { studentsRouter } from './routes/students.js';
 import { roomsRouter } from './routes/rooms.js';
 import { examsRouter } from './routes/exams.js';
 import { allocationsRouter } from './routes/allocations.js';
+import { teachersRouter } from './routes/teachers.js';
+import { dutyRouter } from './routes/duty.js';
 
 const app = express();
 
@@ -19,6 +21,8 @@ app.use('/api/students', studentsRouter);
 app.use('/api/rooms', roomsRouter);
 app.use('/api/exams', examsRouter);
 app.use('/api/allocations', allocationsRouter);
+app.use('/api/teachers', teachersRouter);
+app.use('/api/duty', dutyRouter);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
