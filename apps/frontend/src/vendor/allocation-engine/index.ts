@@ -17,3 +17,5 @@ export * from './duty/dutyAllocator.js';
 export * from './duty/dutyValidator.js';
 export * from './duty/incrementalDuty.js';
 export * from './subjects/subjectAssignment.js';
+export * from './scheduling/conflicts.js';
+export * from './rooms/roomSelection.js';

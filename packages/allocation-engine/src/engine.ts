@@ -5,6 +5,7 @@ import { solveAllocation } from './solver/solver.js';
 import { optimizeAllocation } from './optimizer/optimizer.js';
 import { validateAllocation } from './validator/validator.js';
 import { makeSeed } from './rng.js';
+import { selectMinimalRooms } from './rooms/roomSelection.js';
 
 export const ALGORITHM_VERSION = '1.0.0';
 
@@ -53,9 +54,28 @@ export function generateAllocation(params: GenerateAllocationParams): Allocation
     };
   }
 
-  const solveResult = solveAllocation(students, rooms, params.ruleConfig, seed);
-  const optimized = optimizeAllocation(solveResult.assignments, students, rooms, params.ruleConfig, seed);
-  const validationReport = validateAllocation(optimized, students, rooms, params.ruleConfig);
+  // allocationMode 'minimum-rooms': try the fewest priority-ordered rooms
+  // that should cover everyone first. If seating still comes up short (e.g.
+  // strict adjacency eats into effective capacity more than raw seat counts
+  // suggest), fall back to the full room set - minimizing room count never
+  // takes priority over actually seating every student.
+  let candidateRooms = rooms;
+  if (params.ruleConfig.allocationMode === 'minimum-rooms') {
+    candidateRooms = selectMinimalRooms(rooms, students.length);
+  }
+
+  let solveResult = solveAllocation(students, candidateRooms, params.ruleConfig, seed);
+  if (
+    params.ruleConfig.allocationMode === 'minimum-rooms' &&
+    solveResult.unallocatedStudentIds.length > 0 &&
+    candidateRooms.length < rooms.length
+  ) {
+    candidateRooms = rooms;
+    solveResult = solveAllocation(students, candidateRooms, params.ruleConfig, seed);
+  }
+
+  const optimized = optimizeAllocation(solveResult.assignments, students, candidateRooms, params.ruleConfig, seed);
+  const validationReport = validateAllocation(optimized, students, candidateRooms, params.ruleConfig);
 
   const relaxedRules: string[] = [];
   if (solveResult.unallocatedStudentIds.length > 0) {
@@ -77,7 +97,7 @@ export function generateAllocation(params: GenerateAllocationParams): Allocation
     algorithmVersion: ALGORITHM_VERSION,
     configSnapshot: params.ruleConfig,
     studentSnapshot: students,
-    roomSnapshot: rooms,
+    roomSnapshot: candidateRooms,
     assignments: optimized,
     manualOverrides: [],
     unallocatedStudentIds: solveResult.unallocatedStudentIds,

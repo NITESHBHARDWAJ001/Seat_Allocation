@@ -1,0 +1,100 @@
+2026-11-01, 09:00, 12:00, CSE, 1, Data Structures, CS101
+2026-11-01, 09:00, 12:00, CSE, 2, Operating Systems, CS202
+2026-11-01, 09:00, 12:00, CSE, 3, Database Systems, CS303
+2026-11-01, 09:00, 12:00, CSE, 4, Computer Networks, CS404
+2026-11-01, 09:00, 12:00, ECE, 1, Signals and Systems, EC101
+2026-11-01, 09:00, 12:00, ECE, 2, Digital Electronics, EC202
+2026-11-01, 09:00, 12:00, ECE, 3, Microprocessors, EC303
+2026-11-01, 09:00, 12:00, ECE, 4, Control Systems, EC404
+2026-11-01, 09:00, 12:00, MECH, 1, Thermodynamics, ME101
+2026-11-01, 09:00, 12:00, MECH, 2, Fluid Mechanics, ME202
+2026-11-01, 09:00, 12:00, MECH, 3, Machine Design, ME303
+2026-11-01, 09:00, 12:00, MECH, 4, Manufacturing Processes, ME404
+2026-11-01, 09:00, 12:00, CIVIL, 1, Structural Analysis, CI101
+2026-11-01, 09:00, 12:00, CIVIL, 2, Geotechnical Engineering, CI202
+2026-11-01, 09:00, 12:00, CIVIL, 3, Surveying, CI303
+2026-11-01, 09:00, 12:00, CIVIL, 4, Concrete Technology, CI404
+2026-11-01, 09:00, 12:00, IT, 1, Web Technologies, IT101
+2026-11-01, 09:00, 12:00, IT, 2, Data Mining, IT202
+2026-11-01, 09:00, 12:00, IT, 3, Cloud Computing, IT303
+2026-11-01, 09:00, 12:00, IT, 4, Cyber Security, IT404
+2026-11-01, 14:00, 17:00, CSE, 1, Software Engineering, CS105
+2026-11-01, 14:00, 17:00, CSE, 2, Compiler Design, CS206
+2026-11-01, 14:00, 17:00, CSE, 3, Artificial Intelligence, CS307
+2026-11-01, 14:00, 17:00, CSE, 4, Machine Learning, CS408
+2026-11-01, 14:00, 17:00, ECE, 1, VLSI Design, EC105
+2026-11-01, 14:00, 17:00, ECE, 2, Communication Systems, EC206
+2026-11-01, 14:00, 17:00, ECE, 3, Electromagnetic Theory, EC307
+2026-11-01, 14:00, 17:00, ECE, 4, Embedded Systems, EC408
+2026-11-01, 14:00, 17:00, MECH, 1, Heat Transfer, ME105
+2026-11-01, 14:00, 17:00, MECH, 2, Strength of Materials, ME206
+2026-11-01, 14:00, 17:00, MECH, 3, Dynamics of Machinery, ME307
+2026-11-01, 14:00, 17:00, MECH, 4, Automobile Engineering, ME408
+2026-11-01, 14:00, 17:00, CIVIL, 1, Transportation Engineering, CI105
+2026-11-01, 14:00, 17:00, CIVIL, 2, Environmental Engineering, CI206
+2026-11-01, 14:00, 17:00, CIVIL, 3, Hydraulics, CI307
+2026-11-01, 14:00, 17:00, CIVIL, 4, Building Materials, CI408
+2026-11-01, 14:00, 17:00, IT, 1, Software Testing, IT105
+2026-11-01, 14:00, 17:00, IT, 2, Mobile App Development, IT206
+2026-11-01, 14:00, 17:00, IT, 3, Information Retrieval, IT307
+2026-11-01, 14:00, 17:00, IT, 4, Big Data Analytics, IT408
+2026-11-02, 09:00, 12:00, CSE, 1, Data Structures, CS109
+2026-11-02, 09:00, 12:00, CSE, 2, Operating Systems, CS210
+2026-11-02, 09:00, 12:00, CSE, 3, Database Systems, CS311
+2026-11-02, 09:00, 12:00, CSE, 4, Computer Networks, CS412
+2026-11-02, 09:00, 12:00, ECE, 1, Signals and Systems, EC109
+2026-11-02, 09:00, 12:00, ECE, 2, Digital Electronics, EC210
+2026-11-02, 09:00, 12:00, ECE, 3, Microprocessors, EC311
+2026-11-02, 09:00, 12:00, ECE, 4, Control Systems, EC412
+2026-11-02, 09:00, 12:00, MECH, 1, Thermodynamics, ME109
+2026-11-02, 09:00, 12:00, MECH, 2, Fluid Mechanics, ME210
+2026-11-02, 09:00, 12:00, MECH, 3, Machine Design, ME311
+2026-11-02, 09:00, 12:00, MECH, 4, Manufacturing Processes, ME412
+2026-11-02, 09:00, 12:00, CIVIL, 1, Structural Analysis, CI109
+2026-11-02, 09:00, 12:00, CIVIL, 2, Geotechnical Engineering, CI210
+2026-11-02, 09:00, 12:00, CIVIL, 3, Surveying, CI311
+2026-11-02, 09:00, 12:00, CIVIL, 4, Concrete Technology, CI412
+2026-11-02, 09:00, 12:00, IT, 1, Web Technologies, IT109
+2026-11-02, 09:00, 12:00, IT, 2, Data Mining, IT210
+2026-11-02, 09:00, 12:00, IT, 3, Cloud Computing, IT311
+2026-11-02, 09:00, 12:00, IT, 4, Cyber Security, IT412
+2026-11-02, 14:00, 17:00, CSE, 1, Software Engineering, CS113
+2026-11-02, 14:00, 17:00, CSE, 2, Compiler Design, CS214
+2026-11-02, 14:00, 17:00, CSE, 3, Artificial Intelligence, CS315
+2026-11-02, 14:00, 17:00, CSE, 4, Machine Learning, CS416
+2026-11-02, 14:00, 17:00, ECE, 1, VLSI Design, EC113
+2026-11-02, 14:00, 17:00, ECE, 2, Communication Systems, EC214
+2026-11-02, 14:00, 17:00, ECE, 3, Electromagnetic Theory, EC315
+2026-11-02, 14:00, 17:00, ECE, 4, Embedded Systems, EC416
+2026-11-02, 14:00, 17:00, MECH, 1, Heat Transfer, ME113
+2026-11-02, 14:00, 17:00, MECH, 2, Strength of Materials, ME214
+2026-11-02, 14:00, 17:00, MECH, 3, Dynamics of Machinery, ME315
+2026-11-02, 14:00, 17:00, MECH, 4, Automobile Engineering, ME416
+2026-11-02, 14:00, 17:00, CIVIL, 1, Transportation Engineering, CI113
+2026-11-02, 14:00, 17:00, CIVIL, 2, Environmental Engineering, CI214
+2026-11-02, 14:00, 17:00, CIVIL, 3, Hydraulics, CI315
+2026-11-02, 14:00, 17:00, CIVIL, 4, Building Materials, CI416
+2026-11-02, 14:00, 17:00, IT, 1, Software Testing, IT113
+2026-11-02, 14:00, 17:00, IT, 2, Mobile App Development, IT214
+2026-11-02, 14:00, 17:00, IT, 3, Information Retrieval, IT315
+2026-11-02, 14:00, 17:00, IT, 4, Big Data Analytics, IT416
+2026-11-03, 09:00, 12:00, CSE, 1, Data Structures, CS117
+2026-11-03, 09:00, 12:00, CSE, 2, Operating Systems, CS218
+2026-11-03, 09:00, 12:00, CSE, 3, Database Systems, CS319
+2026-11-03, 09:00, 12:00, CSE, 4, Computer Networks, CS420
+2026-11-03, 09:00, 12:00, ECE, 1, Signals and Systems, EC117
+2026-11-03, 09:00, 12:00, ECE, 2, Digital Electronics, EC218
+2026-11-03, 09:00, 12:00, ECE, 3, Microprocessors, EC319
+2026-11-03, 09:00, 12:00, ECE, 4, Control Systems, EC420
+2026-11-03, 09:00, 12:00, MECH, 1, Thermodynamics, ME117
+2026-11-03, 09:00, 12:00, MECH, 2, Fluid Mechanics, ME218
+2026-11-03, 09:00, 12:00, MECH, 3, Machine Design, ME319
+2026-11-03, 09:00, 12:00, MECH, 4, Manufacturing Processes, ME420
+2026-11-03, 09:00, 12:00, CIVIL, 1, Structural Analysis, CI117
+2026-11-03, 09:00, 12:00, CIVIL, 2, Geotechnical Engineering, CI218
+2026-11-03, 09:00, 12:00, CIVIL, 3, Surveying, CI319
+2026-11-03, 09:00, 12:00, CIVIL, 4, Concrete Technology, CI420
+2026-11-03, 09:00, 12:00, IT, 1, Web Technologies, IT117
+2026-11-03, 09:00, 12:00, IT, 2, Data Mining, IT218
+2026-11-03, 09:00, 12:00, IT, 3, Cloud Computing, IT319
+2026-11-03, 09:00, 12:00, IT, 4, Cyber Security, IT420

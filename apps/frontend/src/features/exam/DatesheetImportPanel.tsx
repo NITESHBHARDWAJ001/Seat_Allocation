@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Exam, Student, SubjectAssignment } from '../../vendor/core/index.js';
 import { defaultRuleConfig, generateId } from '../../vendor/core/index.js';
-import { detectSubjectConflicts } from '../../vendor/allocation-engine/index.js';
+import { detectSubjectConflicts, findStudentSittingConflicts, selectMinimalRooms } from '../../vendor/allocation-engine/index.js';
 import { examRepository, roomRepository } from '../../services/repositories.js';
 
 interface DatesheetRow {
@@ -69,10 +69,17 @@ export default function DatesheetImportPanel({
     }
 
     const allRooms = await roomRepository.getAll();
-    const enabledRoomIds = allRooms.filter((r) => r.enabled).map((r) => r.id);
+    const enabledRooms = allRooms.filter((r) => r.enabled);
+
+    // Sitting conflicts are checked against both exams that already exist AND
+    // the other sessions in this same datesheet paste (two groups can have
+    // different, still-overlapping times, e.g. 09:00-12:00 and 10:00-13:00).
+    const existingExams = await examRepository.getAll();
+    const examsSoFar: Exam[] = [...existingExams];
 
     const noStudentGroups: string[] = [];
     const conflictWarnings: string[] = [];
+    const sittingConflictWarnings: string[] = [];
     let created = 0;
 
     for (const [, groupRows] of groups) {
@@ -97,6 +104,12 @@ export default function DatesheetImportPanel({
         noStudentGroups.push(`${first.date} ${first.startTime}-${first.endTime} (${[...branchYearPairs].join(', ')})`);
       }
 
+      // Only attach as many rooms as this session actually needs (fewest
+      // priority-ordered rooms covering the roster), not every enabled room -
+      // an exam with unused rooms attached still gets charged at least one
+      // invigilator per room when duty rosters are generated later.
+      const roomIds = studentIds.length > 0 ? selectMinimalRooms(enabledRooms, studentIds.length).map((r) => r.id) : [];
+
       const now = new Date().toISOString();
       const exam: Exam = {
         id: generateId('exam'),
@@ -105,7 +118,7 @@ export default function DatesheetImportPanel({
         startTime: first.startTime,
         endTime: first.endTime,
         studentIds,
-        roomIds: enabledRoomIds,
+        roomIds,
         ruleConfig: defaultRuleConfig(),
         subjectAssignments,
         allocationIds: [],
@@ -113,13 +126,24 @@ export default function DatesheetImportPanel({
         createdAt: now,
         updatedAt: now,
       };
+
+      const sittingConflicts = findStudentSittingConflicts(exam, examsSoFar);
+      if (sittingConflicts.length > 0) {
+        const conflictingExamNames = [...new Set(sittingConflicts.map((c) => c.conflictingExamName))];
+        sittingConflictWarnings.push(
+          `${exam.name}: ${sittingConflicts.length} student(s) already scheduled for an overlapping exam (${conflictingExamNames.join(', ')}).`
+        );
+      }
+
       await examRepository.create(exam);
+      examsSoFar.push(exam);
       created++;
     }
 
     const parts = [`Created ${created} exam(s) from ${rows.length} datesheet row(s).`];
     if (noStudentGroups.length) parts.push(`No matching active students found for: ${noStudentGroups.join('; ')}.`);
     if (conflictWarnings.length) parts.push(`Subject conflicts: ${conflictWarnings.join(' ')}`);
+    if (sittingConflictWarnings.length) parts.push(`Sitting conflicts: ${sittingConflictWarnings.join(' ')}`);
     setSummary(parts.join(' '));
     setText('');
     await onImported();

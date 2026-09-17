@@ -9,21 +9,8 @@ import {
   type Teacher,
 } from '@exam-allocator/core';
 import { SeededRandom } from '../rng.js';
+import { timingsOverlap } from '../scheduling/conflicts.js';
 import { validateDutyRoster } from './dutyValidator.js';
-
-function timeToMinutes(t: string): number {
-  const [h, m] = t.split(':').map(Number);
-  return (h ?? 0) * 60 + (m ?? 0);
-}
-
-function examsOverlap(a: Exam, b: Exam): boolean {
-  if (a.date !== b.date) return false;
-  const aStart = timeToMinutes(a.startTime);
-  const aEnd = timeToMinutes(a.endTime);
-  const bStart = timeToMinutes(b.startTime);
-  const bEnd = timeToMinutes(b.endTime);
-  return aStart < bEnd && bStart < aEnd;
-}
 
 /**
  * Teachers already on duty in another exam whose date+time overlaps this
@@ -35,7 +22,7 @@ export function findConflictingTeacherIds(exam: Exam, allExams: Exam[], allRoste
   const conflicting = new Set<string>();
   for (const other of allExams) {
     if (other.id === exam.id) continue;
-    if (!examsOverlap(exam, other)) continue;
+    if (!timingsOverlap(exam, other)) continue;
     const activeRoster = allRosters.find((r) => r.id === other.activeDutyRosterId);
     if (!activeRoster) continue;
     for (const a of activeRoster.assignments) conflicting.add(a.teacherId);

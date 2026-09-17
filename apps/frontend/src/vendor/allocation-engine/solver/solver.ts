@@ -129,6 +129,20 @@ export function solveAllocation(
       }
     }
     results.sort((a, b) => b.score - a.score);
+
+    // Roll continuity 'strict' is a real hard preference, not just a bigger
+    // scoring bonus: once a branch has started in a room, keep every later
+    // same-branch student confined to that room's still-legal seats. Only
+    // fall back to the full candidate list when that room has none left for
+    // this student - never sacrifice seating just to hold the room boundary.
+    if (ruleConfig.rollContinuity.mode === 'strict') {
+      const lastSeat = lastSeatByBranch.get(student.branch);
+      if (lastSeat) {
+        const sameRoom = results.filter((r) => r.seat.roomId === lastSeat.roomId);
+        if (sameRoom.length > 0) return sameRoom.slice(0, MAX_ALTERNATIVES_PER_STUDENT);
+      }
+    }
+
     return results.slice(0, MAX_ALTERNATIVES_PER_STUDENT);
   }
 

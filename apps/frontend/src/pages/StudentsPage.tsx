@@ -5,6 +5,7 @@ import { useAppData } from '../services/AppDataContext.js';
 import { studentRepository } from '../services/repositories.js';
 import { exportStudentsCsv } from '../services/exportService.js';
 import PageHeader from '../components/PageHeader.js';
+import MultiSelectFilter from '../components/MultiSelectFilter.js';
 
 type StudentDraft = Pick<Student, 'rollNumber' | 'name' | 'branch' | 'year' | 'section' | 'semester' | 'batch'>;
 
@@ -13,8 +14,8 @@ const emptyDraft: StudentDraft = { rollNumber: '', name: '', branch: '', year: 1
 export default function StudentsPage() {
   const { students, refreshStudents } = useAppData();
   const [search, setSearch] = useState('');
-  const [branchFilter, setBranchFilter] = useState('');
-  const [yearFilter, setYearFilter] = useState('');
+  const [branchFilter, setBranchFilter] = useState<Set<string>>(new Set());
+  const [yearFilter, setYearFilter] = useState<Set<number>>(new Set());
   const [sectionFilter, setSectionFilter] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [draft, setDraft] = useState<StudentDraft>(emptyDraft);
@@ -41,8 +42,8 @@ export default function StudentsPage() {
 
   const filtered = useMemo(() => {
     let list = students;
-    if (branchFilter) list = list.filter((s) => s.branch === branchFilter);
-    if (yearFilter) list = list.filter((s) => String(s.year) === yearFilter);
+    if (branchFilter.size > 0) list = list.filter((s) => branchFilter.has(s.branch));
+    if (yearFilter.size > 0) list = list.filter((s) => yearFilter.has(s.year));
     if (sectionFilter) list = list.filter((s) => s.section === sectionFilter);
     if (search.trim()) {
       const term = search.toLowerCase();
@@ -241,22 +242,8 @@ export default function StudentsPage() {
 
         <div className="flex flex-wrap gap-2 items-center">
           <input className="input max-w-xs" placeholder="Search roll number or name..." value={search} onChange={(e) => setSearch(e.target.value)} />
-          <select className="input max-w-[140px]" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
-            <option value="">All branches</option>
-            {branches.map((b) => (
-              <option key={b} value={b}>
-                {b}
-              </option>
-            ))}
-          </select>
-          <select className="input max-w-[120px]" value={yearFilter} onChange={(e) => setYearFilter(e.target.value)}>
-            <option value="">All years</option>
-            {years.map((y) => (
-              <option key={y} value={y}>
-                Year {y}
-              </option>
-            ))}
-          </select>
+          <MultiSelectFilter label="Branches" options={branches} selected={branchFilter} onChange={setBranchFilter} />
+          <MultiSelectFilter label="Years" options={years} selected={yearFilter} onChange={setYearFilter} formatOption={(y) => `Year ${y}`} />
           <select className="input max-w-[120px]" value={sectionFilter} onChange={(e) => setSectionFilter(e.target.value)}>
             <option value="">All sections</option>
             {sections.map((s) => (

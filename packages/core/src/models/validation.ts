@@ -13,7 +13,8 @@ export type ConflictType =
   | 'adjacency_year'
   | 'adjacency_section'
   | 'adjacency_batch'
-  | 'invalid_manual_seat';
+  | 'invalid_manual_seat'
+  | 'roll_continuity_split';
 
 export interface Conflict {
   id: string;

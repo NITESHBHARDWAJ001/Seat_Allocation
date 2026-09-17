@@ -14,7 +14,8 @@
     "dev:backend": "npm run dev --workspace=apps/backend",
     "build:frontend": "npm run build --workspace=apps/frontend",
     "seed": "node scripts/generate-fixtures.mjs",
-    "sync:backend-vendor": "node scripts/sync-backend-vendor.mjs"
+    "sync:backend-vendor": "node scripts/sync-backend-vendor.mjs",
+    "sync:frontend-vendor": "node scripts/sync-frontend-vendor.mjs"
   },
   "devDependencies": {
     "typescript": "^5.5.4"

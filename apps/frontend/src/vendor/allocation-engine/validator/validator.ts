@@ -255,6 +255,42 @@ export function validateAllocation(
     passed: strictAdjacencyPassed,
   });
 
+  // Roll continuity 'strict' is a hard constraint like every other 'strict'
+  // rule in this app: a roll-consecutive same-branch pair must share a room.
+  // 'preferred' stays purely a soft nudge (scored below, never gates here).
+  if (ruleConfig.rollContinuity.mode === 'strict') {
+    const seatByStudent = new Map(assignments.map((a) => [a.studentId, a] as const));
+    let rollContinuityStrictPassed = true;
+    for (const group of groupStudents(students, 'branch')) {
+      const sorted = group.students.slice().sort((a, b) => compareRollNumbers(a.rollNumber, b.rollNumber));
+      for (let i = 0; i < sorted.length - 1; i++) {
+        const s1 = sorted[i]!;
+        const s2 = sorted[i + 1]!;
+        const a1 = seatByStudent.get(s1.id);
+        const a2 = seatByStudent.get(s2.id);
+        if (!a1 || !a2) continue; // an unallocated student is already reported elsewhere
+        if (a1.roomId !== a2.roomId) {
+          rollContinuityStrictPassed = false;
+          conflicts.push(
+            makeConflict({
+              type: 'roll_continuity_split',
+              severity: 'medium',
+              seatIds: [a1.seatId, a2.seatId],
+              studentIds: [s1.id, s2.id],
+              description: `Roll-consecutive students ${s1.rollNumber} and ${s2.rollNumber} (${s1.branch}) are split across different rooms despite strict roll continuity.`,
+              suggestedResolution: 'Move one of these students into the other one\'s room, or free up capacity there.',
+            })
+          );
+        }
+      }
+    }
+    hardConstraints.push({
+      id: 'H_roll_continuity_strict',
+      label: 'Strict roll continuity satisfied (roll-consecutive students share a room)',
+      passed: rollContinuityStrictPassed,
+    });
+  }
+
   const allHardConstraintsPassed = hardConstraints.every((c) => c.passed);
 
   // --- Soft scoring ---

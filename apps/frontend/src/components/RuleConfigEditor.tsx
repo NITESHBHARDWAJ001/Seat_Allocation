@@ -114,6 +114,11 @@ export default function RuleConfigEditor({
       <section className="grid sm:grid-cols-2 gap-4">
         <div>
           <h3 className="text-sm font-semibold text-slate-800 mb-2">Roll Number Continuity</h3>
+          <p className="text-xs text-slate-500 mb-2">
+            <strong>Strict</strong> hard-confines a branch group to the room it starts in until that room truly has no
+            legal seat left (a split is then reported as a conflict, not hidden). <strong>Preferred</strong> is a
+            softer nudge toward the same room/nearby seats but may still split for other priorities like utilization.
+          </p>
           <select
             className="input"
             value={value.rollContinuity.mode}

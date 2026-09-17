@@ -6,6 +6,7 @@ import {
   addStudentToAllocation,
   applyManualOverride,
   disableRoomInAllocation,
+  findStudentSittingConflicts,
   previewManualOverride,
   removeStudentFromAllocation,
   type ManualOverridePreview,
@@ -79,6 +80,17 @@ export default function ExamDetailPage() {
     const seat = room?.seats.find((s) => s.id === assignment?.seatId);
     return { student, room, seat };
   }, [search, currentAllocation, exam, students]);
+
+  // Always-on check: adding a student who already sits another exam at an
+  // overlapping date/time would double-book them.
+  const addStudentConflict = useMemo(() => {
+    if (!addStudentId || !exam) return null;
+    const conflicts = findStudentSittingConflicts(
+      { id: exam.id, date: exam.date, startTime: exam.startTime, endTime: exam.endTime, studentIds: [addStudentId] },
+      exams
+    );
+    return conflicts[0] ?? null;
+  }, [addStudentId, exam, exams]);
 
   if (!exam) {
     return (
@@ -164,9 +176,10 @@ export default function ExamDetailPage() {
     await refreshExams();
   }
 
-  async function handleAddStudent() {
+  async function handleAddStudent(force = false) {
     const student = students.find((s) => s.id === addStudentId);
     if (!student) return;
+    if (addStudentConflict && !force) return;
     await examRepository.update(exam!.id, { studentIds: [...exam!.studentIds, student.id] });
     if (currentAllocation) {
       const { updated, seated } = addStudentToAllocation(currentAllocation, student);
@@ -400,10 +413,21 @@ export default function ExamDetailPage() {
                     </option>
                   ))}
                 </select>
-                <button className="btn-secondary" onClick={handleAddStudent} disabled={!addStudentId}>
+                <button className="btn-secondary" onClick={() => handleAddStudent(false)} disabled={!addStudentId || !!addStudentConflict}>
                   Add
                 </button>
+                {addStudentConflict && (
+                  <button className="btn-danger" onClick={() => handleAddStudent(true)}>
+                    Add Anyway
+                  </button>
+                )}
               </div>
+              {addStudentConflict && (
+                <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                  Sitting conflict: this student is already scheduled for <strong>{addStudentConflict.conflictingExamName}</strong> at an
+                  overlapping date/time.
+                </div>
+              )}
               {currentAllocation.unallocatedStudentIds.length > 0 && (
                 <div className="text-sm">
                   <div className="font-medium text-slate-700 mb-1">Unallocated students ({currentAllocation.unallocatedStudentIds.length})</div>
