@@ -1,6 +1,6 @@
 import type { Assignment, Room, RuleConfig, Seat, Student } from '@exam-allocator/core';
 import { SeatGraph, buildSeatGraphs } from '../graph/seatGraph.js';
-import { groupStudents, orderGroupsByConstraint } from '../heuristics/grouping.js';
+import { groupStudents, orderGroupsByConstraint, orderGroupsByRollNumber } from '../heuristics/grouping.js';
 import { buildSeatReservations, type SeatReservations } from '../constraints/distribution.js';
 import { findAdjacencyViolations, hasHardAdjacencyViolation, softAdjacencyPenalty } from '../constraints/adjacency.js';
 import { SeededRandom } from '../rng.js';
@@ -111,7 +111,7 @@ export function solveAllocation(
       score += (freeInRoom / seatsInRoom) * 30;
     }
 
-    score += rng.next() * 0.01;
+    if (ruleConfig.rollContinuity.mode !== 'strict') score += rng.next() * 0.01;
     return score;
   }
 
@@ -126,7 +126,18 @@ export function solveAllocation(
         if (score !== null) results.push({ seat, score });
       }
     }
-    results.sort((a, b) => b.score - a.score);
+    if (ruleConfig.rollContinuity.mode === 'strict') {
+      // Strict roll order follows the room's physical reading order. Hard
+      // constraints have already removed illegal seats; among legal seats,
+      // never prefer the far end of a later row just because it is closer.
+      results.sort((a, b) => {
+        const roomPriority = a.seat.roomId.localeCompare(b.seat.roomId);
+        if (roomPriority !== 0) return roomPriority;
+        return a.seat.row - b.seat.row || a.seat.col - b.seat.col;
+      });
+    } else {
+      results.sort((a, b) => b.score - a.score);
+    }
 
     // Roll continuity 'strict' is a real hard preference, not just a bigger
     // scoring bonus: once a branch has started in a room, keep every later
@@ -145,7 +156,10 @@ export function solveAllocation(
   }
 
   const groups = orderGroupsByConstraint(groupStudents(students, 'branch'));
-  const placementOrder = groups.flatMap((g) => g.students);
+  const placementOrder =
+    ruleConfig.rollContinuity.mode === 'strict'
+      ? orderGroupsByRollNumber(groups).flatMap((g) => g.students)
+      : groups.flatMap((g) => g.students);
 
   const stack: StackFrame[] = [];
   const unallocatedIds = new Set<string>();

@@ -37,6 +37,10 @@ export function orderGroupsByConstraint(groups: StudentGroup[]): StudentGroup[] 
   return groups.slice().sort((a, b) => b.students.length - a.students.length);
 }
 
+export function orderGroupsByRollNumber(groups: StudentGroup[]): StudentGroup[] {
+  return groups.slice().sort((a, b) => compareRollNumbers(a.students[0]?.rollNumber ?? '', b.students[0]?.rollNumber ?? ''));
+}
+
 export function sortStudentsForPlacement(students: Student[]): Student[] {
   const byBranchYearSection = groupStudents(students, 'branch');
   const ordered = orderGroupsByConstraint(byBranchYearSection);

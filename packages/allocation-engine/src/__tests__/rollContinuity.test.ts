@@ -3,6 +3,37 @@ import { generateAllocation } from '../engine.js';
 import { baseRuleConfig, makeRegularRoom, makeStudents } from './helpers.js';
 
 describe('roll number continuity', () => {
+  it('places strict roll numbers in natural order regardless of input order or seed', () => {
+    const room = makeRegularRoom('A', 1, 6);
+    const students = makeStudents(6, 'CSE', 'CSE').reverse();
+    const ruleConfig = { ...baseRuleConfig(), adjacencyRules: [], rollContinuity: { mode: 'strict' as const, priority: 'critical' as const } };
+
+    const first = generateAllocation({ examId: 'e1', students, rooms: [room], ruleConfig, seed: 1 });
+    const second = generateAllocation({ examId: 'e1', students, rooms: [room], ruleConfig, seed: 999 });
+
+    expect(first.assignments.map((a) => a.studentId)).toEqual(['CSE-1', 'CSE-2', 'CSE-3', 'CSE-4', 'CSE-5', 'CSE-6']);
+    expect(first.assignments).toEqual(second.assignments);
+  });
+
+  it('fills each row from its first seat instead of reversing the next row', () => {
+    const room = makeRegularRoom('A', 3, 4);
+    const students = makeStudents(12, 'CSE', 'CSE');
+    const ruleConfig = { ...baseRuleConfig(), adjacencyRules: [], rollContinuity: { mode: 'strict' as const, priority: 'critical' as const } };
+
+    const result = generateAllocation({ examId: 'e1', students, rooms: [room], ruleConfig });
+    const seatsById = new Map(room.seats.map((seat) => [seat.id, seat] as const));
+    const positions = result.assignments.map((assignment) => {
+      const seat = seatsById.get(assignment.seatId)!;
+      return [seat.row, seat.col];
+    });
+
+    expect(positions).toEqual([
+      [1, 1], [1, 2], [1, 3], [1, 4],
+      [2, 1], [2, 2], [2, 3], [2, 4],
+      [3, 1], [3, 2], [3, 3], [3, 4],
+    ]);
+  });
+
   it('keeps a roll-consecutive group entirely together in one room when set to strict, even under a spreading utilization strategy', () => {
     const roomA = makeRegularRoom('A', 4, 5, 1); // 20 seats, priority 1 - exactly enough for the whole group
     const roomB = makeRegularRoom('B', 3, 5, 2); // 15 seats, would normally attract some students under 'spread'

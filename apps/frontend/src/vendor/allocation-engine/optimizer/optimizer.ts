@@ -19,7 +19,7 @@ export function optimizeAllocation(
   ruleConfig: RuleConfig,
   seed: number
 ): Assignment[] {
-  if (assignments.length < 2) return assignments;
+  if (assignments.length < 2 || ruleConfig.rollContinuity.mode === 'strict') return assignments;
 
   const rng = new SeededRandom(seed ^ 0x9e3779b9);
   const graphs = buildSeatGraphs(rooms);
