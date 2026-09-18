@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { AllocationResult, DutyRoster, Room, Student, SubjectAssignment, Teacher } from '../../vendor/core/index.js';
+import { computeRoomLaneSubjects } from '../../vendor/allocation-engine/index.js';
 import { allocationReportRows, buildPrintableRoomSheet, exportAllocationCsv, exportAllocationJson, printHtml } from '../../services/exportService.js';
 
 export default function ReportsPanel({
@@ -146,6 +147,13 @@ export default function ReportsPanel({
                     assignments: allocation.assignments,
                     invigilatorNames: invigilatorNamesFor(room.id),
                     subjectAssignments,
+                    laneSubjects: computeRoomLaneSubjects({
+                      room,
+                      assignments: allocation.assignments,
+                      students,
+                      subjectAssignments,
+                      adjacencyRules: allocation.configSnapshot.adjacencyRules,
+                    }),
                   })
                 )
               }

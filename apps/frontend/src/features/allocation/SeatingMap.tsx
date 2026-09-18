@@ -1,5 +1,5 @@
 import type { AllocationResult, Room, Student, SubjectAssignment } from '../../vendor/core/index.js';
-import { resolveSubjectForGroup } from '../../vendor/allocation-engine/index.js';
+import { computeRoomLaneSubjects, resolveSubjectForGroup, type LaneGroupLabel, type LaneSubjectLabel } from '../../vendor/allocation-engine/index.js';
 import SeatGridView from '../../components/SeatGridView.js';
 import { branchColorClass } from '../../utils/branchColors.js';
 
@@ -28,6 +28,30 @@ export default function SeatingMap({
   const branchYearsInRoom = new Set(
     [...seatToStudent.values()].filter((s): s is Student => !!s).map((s) => `${s.branch}|${s.year}`)
   );
+  // Post-allocation labelling only - reads the finished allocation, never affects placement.
+  const laneSubjects = computeRoomLaneSubjects({
+    room,
+    assignments: allocation.assignments,
+    students,
+    subjectAssignments,
+    adjacencyRules: allocation.configSnapshot.adjacencyRules,
+  });
+  const laneByIndex = new Map<number, LaneSubjectLabel>(laneSubjects.lanes.map((l) => [l.index, l]));
+  const laneText = (lane: LaneSubjectLabel): string =>
+    lane.groups.map((g) => `${g.branch}-Y${g.year}: ${g.subjectName ?? 'no subject'}`).join(' | ');
+  const laneBadge = (lane: LaneSubjectLabel | undefined) =>
+    lane ? (
+      <div
+        title={laneText(lane)}
+        className={`text-[10px] leading-tight px-1 py-0.5 rounded border truncate ${
+          lane.mixed ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-brand-50 border-brand-200 text-brand-800'
+        }`}
+      >
+        {lane.mixed ? `Mixed: ${laneText(lane)}` : (lane.groups[0]!.subjectName ?? `${lane.groups[0]!.branch}-Y${lane.groups[0]!.year}: no subject`)}
+      </div>
+    ) : null;
+  const seatSubject = (label: LaneGroupLabel | undefined) => (label ? (label.subjectName ?? 'no subject') : '');
+
   const subjectsInRoom = subjectAssignments.filter((a) => branchYearsInRoom.has(`${a.branch}|${a.year}`));
 
   return (
@@ -48,6 +72,23 @@ export default function SeatingMap({
       )}
       <SeatGridView
         room={room}
+        rowPrefix={laneSubjects.direction === 'row' ? (rowIndex) => laneBadge(laneByIndex.get(rowIndex)) : undefined}
+        colHeader={
+          laneSubjects.direction === 'column'
+            ? (col) => {
+                const lane = laneByIndex.get(col);
+                return lane ? (
+                  <div
+                    title={laneText(lane)}
+                    style={{ writingMode: 'vertical-rl' }}
+                    className={`text-[10px] max-h-24 overflow-hidden rounded border px-0.5 ${lane.mixed ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-brand-50 border-brand-200 text-brand-800'}`}
+                  >
+                    {lane.mixed ? `Mixed: ${laneText(lane)}` : (lane.groups[0]!.subjectName ?? 'no subject')}
+                  </div>
+                ) : null;
+              }
+            : undefined
+        }
         onSeatClick={onSeatClick ? (seat) => onSeatClick(seat.id) : undefined}
         renderSeat={(seat) => {
           if (seat.blocked) {
@@ -66,7 +107,7 @@ export default function SeatingMap({
           return {
             content: student.rollNumber.slice(-4),
             className: `${branchColorClass(student.branch)} ${isHighlighted ? 'ring-2 ring-brand-500' : ''}`,
-            title: `${student.rollNumber} — ${student.name} (${student.branch})${subject ? ` — ${subject.subjectName}` : ''}`,
+            title: `${student.rollNumber} — ${student.name} (${student.branch})${subject ? ` — ${subject.subjectName}` : ''}${laneSubjects.direction === 'seat' ? ` [${seatSubject(laneSubjects.seats[seat.id])}]` : ''}`,
           };
         }}
       />

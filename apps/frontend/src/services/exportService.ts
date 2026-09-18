@@ -1,5 +1,5 @@
 import type { AllocationResult, Room, Student, SubjectAssignment } from '../vendor/core/index.js';
-import { resolveSubjectForGroup } from '../vendor/allocation-engine/index.js';
+import { resolveSubjectForGroup, type LaneGroupLabel, type LaneSubjectLabel, type RoomLaneSubjects } from '../vendor/allocation-engine/index.js';
 
 /**
  * Export is deliberately decoupled from the UI (spec §53): every function
@@ -108,8 +108,19 @@ export function buildPrintableRoomSheet(params: {
   assignments: AllocationResult['assignments'];
   invigilatorNames?: string[];
   subjectAssignments?: SubjectAssignment[];
+  /** Optional post-allocation row/column/seat subject labels; omitted = sheet unchanged. */
+  laneSubjects?: RoomLaneSubjects;
 }): string {
-  const { collegeName, examName, examDate, room, students, assignments, invigilatorNames = [], subjectAssignments = [] } = params;
+  const { collegeName, examName, examDate, room, students, assignments, invigilatorNames = [], subjectAssignments = [], laneSubjects } = params;
+  const laneDirection = laneSubjects?.direction ?? 'none';
+  const laneByIndex = new Map<number, LaneSubjectLabel>((laneSubjects?.lanes ?? []).map((l) => [l.index, l]));
+  const laneText = (lane: LaneSubjectLabel | undefined): string =>
+    !lane
+      ? ''
+      : lane.mixed
+        ? 'Mixed: ' + lane.groups.map((g) => `${g.branch}-Y${g.year} ${g.subjectName ?? 'no subject'}`).join(' / ')
+        : (lane.groups[0]!.subjectName ?? `${lane.groups[0]!.branch}-Y${lane.groups[0]!.year}: no subject`);
+  const seatText = (label: LaneGroupLabel | undefined): string => (label ? (label.subjectName ?? 'no subject') : '');
   const studentsById = new Map(students.map((s) => [s.id, s]));
   const seatToStudent = new Map(
     assignments.filter((a) => a.roomId === room.id).map((a) => [a.seatId, studentsById.get(a.studentId)] as const)
@@ -130,12 +141,20 @@ export function buildPrintableRoomSheet(params: {
         .map((seat) => {
           if (seat.blocked) return `<td class="seat blocked">&times;</td>`;
           const student = seatToStudent.get(seat.id);
-          return `<td class="seat${student ? ' filled' : ''}">${student ? escapeHtml(student.rollNumber) : ''}</td>`;
+          const sub = student && laneDirection === 'seat' ? `<div class="sub">${escapeHtml(seatText(laneSubjects!.seats[seat.id]))}</div>` : '';
+          return `<td class="seat${student ? ' filled' : ''}">${student ? escapeHtml(student.rollNumber) : ''}${sub}</td>`;
         })
         .join('');
-      return `<tr><th>R${rowIndex}</th>${cells}</tr>`;
+      const lanePrefix = laneDirection === 'row' ? `<th class="lane">${escapeHtml(laneText(laneByIndex.get(rowIndex)))}</th>` : '';
+      return `<tr>${lanePrefix}<th>R${rowIndex}</th>${cells}</tr>`;
     })
     .join('');
+
+  const maxCol = Math.max(1, ...room.seats.map((s) => s.col));
+  const columnLaneRow =
+    laneDirection === 'column'
+      ? `<tr><th></th>${Array.from({ length: maxCol }, (_, i) => `<th class="lane">${escapeHtml(laneText(laneByIndex.get(i + 1)))}</th>`).join('')}</tr>`
+      : '';
 
   const total = [...seatToStudent.values()].filter(Boolean).length;
 
@@ -161,6 +180,8 @@ export function buildPrintableRoomSheet(params: {
   th { background: #f0f0f0; }
   .seat.filled { background: #eef4ff; font-weight: 600; }
   .seat.blocked { background: #eee; color: #999; }
+  th.lane { background: #fff8e1; font-weight: normal; font-size: 11px; max-width: 140px; }
+  .sub { font-size: 9px; font-weight: normal; color: #555; }
   .meta { margin-top: 20px; font-size: 12px; }
   .footer { margin-top: 40px; display: flex; justify-content: space-between; font-size: 12px; }
 </style>
@@ -173,7 +194,7 @@ export function buildPrintableRoomSheet(params: {
     <strong>Total students:</strong> ${total}
     ${subjectsLine ? `<br/><strong>Subjects:</strong> ${subjectsLine}` : ''}
   </div>
-  <table>${rowsHtml}</table>
+  <table>${columnLaneRow}${rowsHtml}</table>
   <div class="footer">
     <span>Invigilator: ${invigilatorLine}</span>
     <span>Signature: ______________________</span>
