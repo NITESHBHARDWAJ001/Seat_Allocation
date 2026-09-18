@@ -2,9 +2,10 @@
 // Edit the source in packages/allocation-engine instead, then re-run that script to update this copy.
 import type { Assignment, Room, RuleConfig, Seat, Student } from '../../core/index.js';
 import { SeatGraph, buildSeatGraphs } from '../graph/seatGraph.js';
-import { groupStudents, orderGroupsByConstraint, orderGroupsByRollNumber } from '../heuristics/grouping.js';
-import { buildSeatReservations, type SeatReservations } from '../constraints/distribution.js';
+import { groupStudents, mixStudentsByYear, orderGroupsByConstraint, orderStudentsByYear } from '../heuristics/grouping.js';
+import { buildSeatReservations } from '../constraints/distribution.js';
 import { findAdjacencyViolations, hasHardAdjacencyViolation, softAdjacencyPenalty } from '../constraints/adjacency.js';
+import { planStrictContinuityLanes } from './strictContinuityLanes.js';
 import { SeededRandom } from '../rng.js';
 
 export interface SolveResult {
@@ -43,14 +44,17 @@ export function solveAllocation(
 ): SolveResult {
   const rng = new SeededRandom(seed);
   const graphs = buildSeatGraphs(rooms);
+  const seatsById = new Map(rooms.flatMap((room) => room.seats.map((seat) => [seat.id, seat] as const)));
   const reservations = buildSeatReservations(rooms, ruleConfig);
   const studentsById = new Map(students.map((s) => [s.id, s]));
 
   const seatAssignedTo = new Map<string, Student>();
   const occupantOf = (seatId: string): Student | undefined => seatAssignedTo.get(seatId);
 
-  const lastSeatByBranch = new Map<string, Seat>();
+  const lastSeatByGroup = new Map<string, Seat>();
   const branchRoomCounts = new Map<string, Map<string, number>>();
+
+  const continuityGroupKey = (student: Student): string => `${student.branch}:${student.year}`;
 
   function isFree(seat: Seat): boolean {
     return seat.available && !seat.blocked && !seatAssignedTo.has(seat.id);
@@ -58,7 +62,7 @@ export function solveAllocation(
 
   function assign(seat: Seat, student: Student) {
     seatAssignedTo.set(seat.id, student);
-    lastSeatByBranch.set(student.branch, seat);
+    lastSeatByGroup.set(continuityGroupKey(student), seat);
     const m = branchRoomCounts.get(student.branch) ?? new Map<string, number>();
     m.set(seat.roomId, (m.get(seat.roomId) ?? 0) + 1);
     branchRoomCounts.set(student.branch, m);
@@ -70,6 +74,20 @@ export function solveAllocation(
     if (student) {
       const m = branchRoomCounts.get(student.branch);
       if (m) m.set(seat.roomId, Math.max(0, (m.get(seat.roomId) ?? 1) - 1));
+
+      const groupKey = continuityGroupKey(student);
+      let restored: Seat | undefined;
+      let restoredPosition = -1;
+      for (const [assignedSeatId, assignedStudent] of seatAssignedTo) {
+        if (continuityGroupKey(assignedStudent) !== groupKey) continue;
+        const position = placementOrder.findIndex((candidate) => candidate.id === assignedStudent.id);
+        if (position > restoredPosition) {
+          restoredPosition = position;
+          restored = seatsById.get(assignedSeatId);
+        }
+      }
+      if (restored) lastSeatByGroup.set(groupKey, restored);
+      else lastSeatByGroup.delete(groupKey);
     }
   }
 
@@ -91,7 +109,7 @@ export function solveAllocation(
     if (reservedFor === student.branch) score += 200;
 
     if (ruleConfig.rollContinuity.mode !== 'off') {
-      const lastSeat = lastSeatByBranch.get(student.branch);
+      const lastSeat = lastSeatByGroup.get(continuityGroupKey(student));
       if (lastSeat && lastSeat.roomId === seat.roomId) {
         const dist = graph.distance(lastSeat, seat);
         score += (ruleConfig.rollContinuity.mode === 'strict' ? 500 : 150) / (1 + dist);
@@ -117,6 +135,12 @@ export function solveAllocation(
     return score;
   }
 
+  // Room priority lookup, used to give strict-continuity leftovers a
+  // deterministic room order (fill the highest-priority room's remaining
+  // legal seats before spilling into the next) instead of an arbitrary
+  // string comparison on room id.
+  const roomPriorityById = new Map(rooms.map((r) => [r.id, r.priority] as const));
+
   function computeCandidates(student: Student): ScoredCandidate[] {
     const results: ScoredCandidate[] = [];
     for (const room of rooms) {
@@ -129,39 +153,51 @@ export function solveAllocation(
       }
     }
     if (ruleConfig.rollContinuity.mode === 'strict') {
-      // Strict roll order follows the room's physical reading order. Hard
-      // constraints have already removed illegal seats; among legal seats,
-      // never prefer the far end of a later row just because it is closer.
+      // This path only ever sees students the deterministic lane planner
+      // (see strictContinuityLanes.ts) could not place - a genuine capacity
+      // edge case, not the common case. Reading order + same-room
+      // confinement is a reasonable, simple fallback; the lane planner
+      // owns the real placement semantics for direction-aware continuity.
       results.sort((a, b) => {
-        const roomPriority = a.seat.roomId.localeCompare(b.seat.roomId);
+        const roomPriority = (roomPriorityById.get(a.seat.roomId) ?? 0) - (roomPriorityById.get(b.seat.roomId) ?? 0);
         if (roomPriority !== 0) return roomPriority;
         return a.seat.row - b.seat.row || a.seat.col - b.seat.col;
       });
-    } else {
-      results.sort((a, b) => b.score - a.score);
-    }
-
-    // Roll continuity 'strict' is a real hard preference, not just a bigger
-    // scoring bonus: once a branch has started in a room, keep every later
-    // same-branch student confined to that room's still-legal seats. Only
-    // fall back to the full candidate list when that room has none left for
-    // this student - never sacrifice seating just to hold the room boundary.
-    if (ruleConfig.rollContinuity.mode === 'strict') {
-      const lastSeat = lastSeatByBranch.get(student.branch);
+      const lastSeat = lastSeatByGroup.get(continuityGroupKey(student));
       if (lastSeat) {
         const sameRoom = results.filter((r) => r.seat.roomId === lastSeat.roomId);
         if (sameRoom.length > 0) return sameRoom.slice(0, MAX_ALTERNATIVES_PER_STUDENT);
       }
+    } else {
+      results.sort((a, b) => b.score - a.score);
     }
 
     return results.slice(0, MAX_ALTERNATIVES_PER_STUDENT);
   }
 
+  // Strict roll continuity is a placement rule, not a scoring preference: it
+  // is resolved deterministically up front (direction-aware lanes when a
+  // strict year/branch adjacency rule is active, plain room-by-room reading
+  // order otherwise). Only students the planner could not legally place
+  // (a genuine capacity/constraint edge case) fall through to the generic
+  // backtracking loop below.
+  const lanePlan = planStrictContinuityLanes(students, rooms, ruleConfig);
+  if (lanePlan) {
+    for (const [seatId, studentId] of lanePlan.assignments) {
+      const seat = seatsById.get(seatId);
+      const student = studentsById.get(studentId);
+      if (seat && student) assign(seat, student);
+    }
+  }
+
   const groups = orderGroupsByConstraint(groupStudents(students, 'branch'));
-  const placementOrder =
-    ruleConfig.rollContinuity.mode === 'strict'
-      ? orderGroupsByRollNumber(groups).flatMap((g) => g.students)
-      : groups.flatMap((g) => g.students);
+  const placementOrder = lanePlan
+    ? lanePlan.unplaced
+    : ruleConfig.yearMixing === 'year-wise'
+      ? orderStudentsByYear(students)
+      : ruleConfig.yearMixing === 'mixed'
+        ? mixStudentsByYear(students)
+        : groups.flatMap((g) => g.students);
 
   const stack: StackFrame[] = [];
   const unallocatedIds = new Set<string>();
@@ -213,6 +249,12 @@ export function solveAllocation(
   }
 
   const assignments: Assignment[] = [];
+  if (lanePlan) {
+    for (const [seatId, studentId] of lanePlan.assignments) {
+      const seat = seatsById.get(seatId)!;
+      assignments.push({ studentId, seatId, roomId: seat.roomId });
+    }
+  }
   for (const frame of stack) {
     if (unallocatedIds.has(frame.studentId)) continue;
     assignments.push({ studentId: frame.studentId, seatId: frame.seat.id, roomId: frame.seat.roomId });

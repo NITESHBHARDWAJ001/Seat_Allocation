@@ -41,6 +41,40 @@ export function orderGroupsByRollNumber(groups: StudentGroup[]): StudentGroup[] 
   return groups.slice().sort((a, b) => compareRollNumbers(a.students[0]?.rollNumber ?? '', b.students[0]?.rollNumber ?? ''));
 }
 
+export function orderStudentsByYear(students: Student[]): Student[] {
+  return students.slice().sort((a, b) => a.year - b.year || compareRollNumbers(a.rollNumber, b.rollNumber));
+}
+
+export function mixStudentsByYear(students: Student[]): Student[] {
+  const byYear = new Map<number, Student[]>();
+  for (const student of students) {
+    const group = byYear.get(student.year) ?? [];
+    group.push(student);
+    byYear.set(student.year, group);
+  }
+
+  const groups = [...byYear.values()].map((group) => orderStudentsByYear(group));
+  const mixed: Student[] = [];
+  const maxLength = Math.max(0, ...groups.map((group) => group.length));
+  for (let index = 0; index < maxLength; index++) {
+    for (const group of groups) {
+      const student = group[index];
+      if (student) mixed.push(student);
+    }
+  }
+  return mixed;
+}
+
+export function orderStudentsByRollWithinYear(students: Student[]): Student[] {
+  const byYear = new Map<number, Student[]>();
+  for (const student of students) {
+    const group = byYear.get(student.year) ?? [];
+    group.push(student);
+    byYear.set(student.year, group);
+  }
+  return [...byYear.values()].flatMap((group) => group.slice().sort((a, b) => compareRollNumbers(a.rollNumber, b.rollNumber)));
+}
+
 export function sortStudentsForPlacement(students: Student[]): Student[] {
   const byBranchYearSection = groupStudents(students, 'branch');
   const ordered = orderGroupsByConstraint(byBranchYearSection);

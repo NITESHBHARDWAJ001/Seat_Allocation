@@ -253,14 +253,21 @@ export function validateAllocation(
     passed: strictAdjacencyPassed,
   });
 
-  // Roll continuity 'strict' is a hard constraint like every other 'strict'
-  // rule in this app: a roll-consecutive same-branch pair must share a room.
+  // Roll continuity is scoped to a branch+year cohort. Different years in the
+  // same branch are intentionally separate continuity sequences.
   // 'preferred' stays purely a soft nudge (scored below, never gates here).
   if (ruleConfig.rollContinuity.mode === 'strict') {
     const seatByStudent = new Map(assignments.map((a) => [a.studentId, a] as const));
     let rollContinuityStrictPassed = true;
-    for (const group of groupStudents(students, 'branch')) {
-      const sorted = group.students.slice().sort((a, b) => compareRollNumbers(a.rollNumber, b.rollNumber));
+    const continuityGroups = new Map<string, Student[]>();
+    for (const student of students) {
+      const key = `${student.branch}:${student.year}`;
+      const group = continuityGroups.get(key) ?? [];
+      group.push(student);
+      continuityGroups.set(key, group);
+    }
+    for (const group of continuityGroups.values()) {
+      const sorted = group.slice().sort((a, b) => compareRollNumbers(a.rollNumber, b.rollNumber));
       for (let i = 0; i < sorted.length - 1; i++) {
         const s1 = sorted[i]!;
         const s2 = sorted[i + 1]!;
@@ -275,7 +282,7 @@ export function validateAllocation(
               severity: 'medium',
               seatIds: [a1.seatId, a2.seatId],
               studentIds: [s1.id, s2.id],
-              description: `Roll-consecutive students ${s1.rollNumber} and ${s2.rollNumber} (${s1.branch}) are split across different rooms despite strict roll continuity.`,
+              description: `Roll-consecutive students ${s1.rollNumber} and ${s2.rollNumber} (${s1.branch}, Year ${s1.year}) are split across different rooms despite strict roll continuity.`,
               suggestedResolution: 'Move one of these students into the other one\'s room, or free up capacity there.',
             })
           );
@@ -318,12 +325,18 @@ export function validateAllocation(
 
   // Roll continuity score: fraction of roll-consecutive same-branch pairs seated in the same room.
   if (ruleConfig.rollContinuity.mode !== 'off') {
-    const groups = groupStudents(students, 'branch');
+    const continuityGroups = new Map<string, Student[]>();
+    for (const student of students) {
+      const key = `${student.branch}:${student.year}`;
+      const group = continuityGroups.get(key) ?? [];
+      group.push(student);
+      continuityGroups.set(key, group);
+    }
     let total = 0;
     let together = 0;
     const seatByStudent = new Map(assignments.map((a) => [a.studentId, a.roomId] as const));
-    for (const group of groups) {
-      const sorted = group.students.slice().sort((a, b) => compareRollNumbers(a.rollNumber, b.rollNumber));
+    for (const group of continuityGroups.values()) {
+      const sorted = group.slice().sort((a, b) => compareRollNumbers(a.rollNumber, b.rollNumber));
       for (let i = 0; i < sorted.length - 1; i++) {
         const s1 = sorted[i]!;
         const s2 = sorted[i + 1]!;

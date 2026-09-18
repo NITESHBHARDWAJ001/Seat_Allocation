@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { generateAllocation } from '../engine.js';
-import { baseRuleConfig, makeRegularRoom, makeStudents } from './helpers.js';
+import { baseRuleConfig, makeRegularRoom, makeStudent, makeStudents } from './helpers.js';
 
 describe('roll number continuity', () => {
   it('places strict roll numbers in natural order regardless of input order or seed', () => {
@@ -32,6 +32,22 @@ describe('roll number continuity', () => {
       [2, 1], [2, 2], [2, 3], [2, 4],
       [3, 1], [3, 2], [3, 3], [3, 4],
     ]);
+  });
+
+  it('keeps roll order within each year while applying mixed year placement', () => {
+    const room = makeRegularRoom('A', 1, 4);
+    const students = [
+      makeStudent({ id: 'y3-1', rollNumber: '24CSE001', branch: 'CSE', year: 3 }),
+      makeStudent({ id: 'y4-1', rollNumber: '23CSE001', branch: 'CSE', year: 4 }),
+      makeStudent({ id: 'y3-2', rollNumber: '24CSE002', branch: 'CSE', year: 3 }),
+      makeStudent({ id: 'y4-2', rollNumber: '23CSE002', branch: 'CSE', year: 4 }),
+    ];
+    const ruleConfig = { ...baseRuleConfig(), adjacencyRules: [], yearMixing: 'mixed' as const, rollContinuity: { mode: 'strict' as const, priority: 'critical' as const } };
+
+    const result = generateAllocation({ examId: 'e1', students, rooms: [room], ruleConfig });
+
+    expect(new Set(result.assignments.map((assignment) => assignment.studentId))).toEqual(new Set(['y3-1', 'y4-1', 'y3-2', 'y4-2']));
+    expect(result.validationReport.hardConstraints.find((constraint) => constraint.id === 'H_roll_continuity_strict')?.passed).toBe(true);
   });
 
   it('keeps a roll-consecutive group entirely together in one room when set to strict, even under a spreading utilization strategy', () => {
