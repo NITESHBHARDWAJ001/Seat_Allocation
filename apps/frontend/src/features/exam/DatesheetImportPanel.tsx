@@ -3,6 +3,7 @@ import type { Exam, Student, SubjectAssignment } from '../../vendor/core/index.j
 import { defaultRuleConfig, generateId } from '../../vendor/core/index.js';
 import { detectSubjectConflicts, findStudentSittingConflicts, selectMinimalRooms } from '../../vendor/allocation-engine/index.js';
 import { examRepository, roomRepository } from '../../services/repositories.js';
+import ExcelImportControls from '../../components/ExcelImportControls.js';
 
 interface DatesheetRow {
   date: string;
@@ -58,7 +59,28 @@ export default function DatesheetImportPanel({
       setError('No valid rows found.');
       return;
     }
+    setSummary(await importRows(rows));
+    setText('');
+    await onImported();
+  }
 
+  async function handleExcelImport(records: { rowNumber: number; values: Record<string, string> }[]): Promise<string> {
+    const rows: DatesheetRow[] = records.map(({ values: v }) => ({
+      date: v.date!,
+      startTime: v.startTime!,
+      endTime: v.endTime!,
+      branch: v.branch!,
+      year: Number(v.year),
+      subjectName: v.subjectName!,
+      subjectCode: v.subjectCode || undefined,
+    }));
+    const message = await importRows(rows);
+    await onImported();
+    return message;
+  }
+
+  /** Shared by the pasted-text and Excel imports: groups rows into exam sittings and creates the exams. Returns the summary message. */
+  async function importRows(rows: DatesheetRow[]): Promise<string> {
     // Same date+start+end time => one exam session (multiple subjects, one sitting).
     const groups = new Map<string, DatesheetRow[]>();
     for (const row of rows) {
@@ -144,9 +166,7 @@ export default function DatesheetImportPanel({
     if (noStudentGroups.length) parts.push(`No matching active students found for: ${noStudentGroups.join('; ')}.`);
     if (conflictWarnings.length) parts.push(`Subject conflicts: ${conflictWarnings.join(' ')}`);
     if (sittingConflictWarnings.length) parts.push(`Sitting conflicts: ${sittingConflictWarnings.join(' ')}`);
-    setSummary(parts.join(' '));
-    setText('');
-    await onImported();
+    return parts.join(' ');
   }
 
   return (
@@ -154,9 +174,11 @@ export default function DatesheetImportPanel({
       <div className="text-sm font-medium text-slate-700">Import Datesheet</div>
       <p className="text-xs text-slate-500">
         One row per branch+year paper: <code>date, startTime, endTime, branch, year, subjectName[, subjectCode]</code>.
-        Rows sharing the same date+start+end time become one exam session (multiple subjects, same sitting). All
-        currently enabled rooms are auto-assigned to each created exam — adjust per exam afterward if needed.
+        Rows sharing the same date+start+end time become one exam session (multiple subjects, same sitting). The
+        fewest priority-ordered rooms needed for each sitting are auto-assigned — adjust per exam afterward if needed.
       </p>
+      <ExcelImportControls kind="datesheet" onImport={handleExcelImport} />
+      <div className="text-xs text-slate-400">Or paste rows:</div>
       <textarea
         className="input font-mono h-32"
         placeholder={'2026-11-01, 09:00, 12:00, CSE, 2, Data Structures, CS201\n2026-11-01, 09:00, 12:00, ECE, 2, Signals and Systems, EC201\n2026-11-01, 14:00, 17:00, CSE, 3, Database Systems, CS301'}

@@ -6,6 +6,7 @@ import { studentRepository } from '../services/repositories.js';
 import { exportStudentsCsv } from '../services/exportService.js';
 import PageHeader from '../components/PageHeader.js';
 import MultiSelectFilter from '../components/MultiSelectFilter.js';
+import ExcelImportControls from '../components/ExcelImportControls.js';
 
 type StudentDraft = Pick<Student, 'rollNumber' | 'name' | 'branch' | 'year' | 'section' | 'semester' | 'batch'>;
 
@@ -155,6 +156,23 @@ export default function StudentsPage() {
     await refreshStudents();
   }
 
+  async function handleExcelImport(records: { rowNumber: number; values: Record<string, string> }[]): Promise<string> {
+    const valid: Student[] = records.map(({ values: v }) => ({
+      id: generateId('student'),
+      rollNumber: v.rollNumber!,
+      name: v.name!,
+      branch: v.branch!,
+      year: Number(v.year),
+      section: v.section!,
+      semester: v.semester ? Number(v.semester) : undefined,
+      batch: v.batch || undefined,
+      active: true,
+    }));
+    await studentRepository.createMany(valid);
+    await refreshStudents();
+    return `Imported ${valid.length} student(s) from Excel.`;
+  }
+
   return (
     <div>
       <PageHeader
@@ -182,6 +200,8 @@ export default function StudentsPage() {
             {missingFieldsCount > 0 && <div>{missingFieldsCount} student(s) have a missing required field.</div>}
           </div>
         )}
+
+        <ExcelImportControls kind="students" onImport={handleExcelImport} />
 
         {showBulk && (
           <div className="card p-4 space-y-2">

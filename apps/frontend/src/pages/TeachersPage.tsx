@@ -4,6 +4,7 @@ import { generateId } from '../vendor/core/index.js';
 import { useAppData } from '../services/AppDataContext.js';
 import { teacherRepository } from '../services/repositories.js';
 import PageHeader from '../components/PageHeader.js';
+import ExcelImportControls from '../components/ExcelImportControls.js';
 
 type TeacherDraft = Pick<Teacher, 'name' | 'branch' | 'email' | 'phone'>;
 
@@ -107,6 +108,20 @@ export default function TeachersPage() {
     await refreshTeachers();
   }
 
+  async function handleExcelImport(records: { rowNumber: number; values: Record<string, string> }[]): Promise<string> {
+    const valid: Teacher[] = records.map(({ values: v }) => ({
+      id: generateId('teacher'),
+      name: v.name!,
+      branch: v.branch!,
+      email: v.email || undefined,
+      phone: v.phone || undefined,
+      active: true,
+    }));
+    await teacherRepository.createMany(valid);
+    await refreshTeachers();
+    return `Imported ${valid.length} teacher(s) from Excel.`;
+  }
+
   return (
     <div>
       <PageHeader
@@ -125,6 +140,8 @@ export default function TeachersPage() {
       />
 
       <div className="p-6 space-y-4">
+        <ExcelImportControls kind="teachers" onImport={handleExcelImport} />
+
         {showBulk && (
           <div className="card p-4 space-y-2">
             <div className="text-sm font-medium text-slate-700">Bulk paste import</div>
