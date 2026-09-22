@@ -1,5 +1,6 @@
 import type { AllocationResult, Room, Student, SubjectAssignment } from '../vendor/core/index.js';
 import { resolveSubjectForGroup, type LaneGroupLabel, type LaneSubjectLabel, type RoomLaneSubjects } from '../vendor/allocation-engine/index.js';
+import writeExcelFile from 'write-excel-file/browser';
 
 /**
  * Export is deliberately decoupled from the UI (spec §53): every function
@@ -114,13 +115,10 @@ export function buildPrintableRoomSheet(params: {
   const { collegeName, examName, examDate, room, students, assignments, invigilatorNames = [], subjectAssignments = [], laneSubjects } = params;
   const laneDirection = laneSubjects?.direction ?? 'none';
   const laneByIndex = new Map<number, LaneSubjectLabel>((laneSubjects?.lanes ?? []).map((l) => [l.index, l]));
+  const groupText = (g: LaneGroupLabel): string => (g.subjectName ? `${g.subjectName}${g.subjectCode ? ` (${g.subjectCode})` : ''}` : `${g.branch}-Y${g.year}: no subject`);
   const laneText = (lane: LaneSubjectLabel | undefined): string =>
-    !lane
-      ? ''
-      : lane.mixed
-        ? 'Mixed: ' + lane.groups.map((g) => `${g.branch}-Y${g.year} ${g.subjectName ?? 'no subject'}`).join(' / ')
-        : (lane.groups[0]!.subjectName ?? `${lane.groups[0]!.branch}-Y${lane.groups[0]!.year}: no subject`);
-  const seatText = (label: LaneGroupLabel | undefined): string => (label ? (label.subjectName ?? 'no subject') : '');
+    !lane ? '' : lane.mixed ? 'Mixed: ' + lane.groups.map((g) => `${g.branch}-Y${g.year} ${groupText(g)}`).join(' / ') : groupText(lane.groups[0]!);
+  const seatText = (label: LaneGroupLabel | undefined): string => (label ? groupText(label) : '');
   const studentsById = new Map(students.map((s) => [s.id, s]));
   const seatToStudent = new Map(
     assignments.filter((a) => a.roomId === room.id).map((a) => [a.seatId, studentsById.get(a.studentId)] as const)
@@ -169,6 +167,30 @@ export function buildPrintableRoomSheet(params: {
 
   const invigilatorLine = invigilatorNames.length > 0 ? escapeHtml(invigilatorNames.join(', ')) : '______________________';
 
+  // Legend at the bottom of the sheet: "Row 1 - Subject Name (Code)" / "Column 1 - ..." for
+  // row/column separation, or one line per branch+year for per-seat separation - so the
+  // subject for each lane is spelled out once, clearly, in addition to the inline in-grid label.
+  const legendLabel = laneDirection === 'row' ? 'Row' : laneDirection === 'column' ? 'Column' : '';
+  const legendRows =
+    laneDirection === 'seat'
+      ? [...new Map(Object.values(laneSubjects!.seats).map((g) => [g.groupKey, g])).values()]
+          .sort((a, b) => a.branch.localeCompare(b.branch) || a.year - b.year)
+          .map((g) => `<tr><td>${escapeHtml(g.branch)}-Y${g.year}</td><td>${escapeHtml(groupText(g))}</td></tr>`)
+          .join('')
+      : (laneSubjects?.lanes ?? [])
+          .map(
+            (lane) =>
+              `<tr><td>${legendLabel} ${lane.index}</td><td>${lane.mixed ? escapeHtml('Mixed: ' + lane.groups.map((g) => `${g.branch}-Y${g.year} ${groupText(g)}`).join(' / ')) : escapeHtml(groupText(lane.groups[0]!))}</td></tr>`
+          )
+          .join('');
+  const legendHtml =
+    laneDirection === 'none'
+      ? ''
+      : `<table class="legend">
+           <tr><th>${laneDirection === 'seat' ? 'Group' : legendLabel}</th><th>Subject</th></tr>
+           ${legendRows}
+         </table>`;
+
   return `<!doctype html>
 <html><head><meta charset="utf-8" /><title>${escapeHtml(room.name)} — Seating Plan</title>
 <style>
@@ -182,6 +204,9 @@ export function buildPrintableRoomSheet(params: {
   .seat.blocked { background: #eee; color: #999; }
   th.lane { background: #fff8e1; font-weight: normal; font-size: 11px; max-width: 140px; }
   .sub { font-size: 9px; font-weight: normal; color: #555; }
+  table.legend { margin-top: 20px; }
+  table.legend th, table.legend td { min-width: 0; text-align: left; padding: 4px 10px; }
+  table.legend th { font-size: 11px; }
   .meta { margin-top: 20px; font-size: 12px; }
   .footer { margin-top: 40px; display: flex; justify-content: space-between; font-size: 12px; }
 </style>
@@ -195,6 +220,7 @@ export function buildPrintableRoomSheet(params: {
     ${subjectsLine ? `<br/><strong>Subjects:</strong> ${subjectsLine}` : ''}
   </div>
   <table>${columnLaneRow}${rowsHtml}</table>
+  ${legendHtml}
   <div class="footer">
     <span>Invigilator: ${invigilatorLine}</span>
     <span>Signature: ______________________</span>
@@ -209,4 +235,111 @@ export function printHtml(html: string): void {
   win.document.close();
   win.focus();
   win.print();
+}
+
+/**
+ * The same room seating plan as buildPrintableRoomSheet, as a downloadable
+ * .xlsx workbook instead of an HTML print page - a "Seating" sheet laid out
+ * exactly like the seat grid (with the same row/column subject labels) plus
+ * a "Legend" sheet spelling out each row/column's subject. Reads the
+ * finished allocation only; does not affect seating in any way.
+ */
+export async function exportRoomSheetXlsx(params: {
+  collegeName: string;
+  examName: string;
+  examDate: string;
+  room: Room;
+  students: Student[];
+  assignments: AllocationResult['assignments'];
+  invigilatorNames?: string[];
+  subjectAssignments?: SubjectAssignment[];
+  laneSubjects?: RoomLaneSubjects;
+}): Promise<void> {
+  const { collegeName, examName, examDate, room, students, assignments, invigilatorNames = [], subjectAssignments = [], laneSubjects } = params;
+  const laneDirection = laneSubjects?.direction ?? 'none';
+  const laneByIndex = new Map<number, LaneSubjectLabel>((laneSubjects?.lanes ?? []).map((l) => [l.index, l]));
+  const groupText = (g: LaneGroupLabel): string => (g.subjectName ? `${g.subjectName}${g.subjectCode ? ` (${g.subjectCode})` : ''}` : `${g.branch}-Y${g.year}: no subject`);
+  const laneText = (lane: LaneSubjectLabel | undefined): string =>
+    !lane ? '' : lane.mixed ? 'Mixed: ' + lane.groups.map((g) => `${g.branch}-Y${g.year} ${groupText(g)}`).join(' / ') : groupText(lane.groups[0]!);
+  const seatText = (label: LaneGroupLabel | undefined): string => (label ? groupText(label) : '');
+
+  const studentsById = new Map(students.map((s) => [s.id, s]));
+  const seatToStudent = new Map(assignments.filter((a) => a.roomId === room.id).map((a) => [a.seatId, studentsById.get(a.studentId)] as const));
+  const rowsByIndex = new Map<number, typeof room.seats>();
+  for (const seat of room.seats) {
+    const list = rowsByIndex.get(seat.row) ?? [];
+    list.push(seat);
+    rowsByIndex.set(seat.row, list);
+  }
+  const sortedRows = [...rowsByIndex.entries()].sort((a, b) => a[0] - b[0]);
+  const maxCol = Math.max(1, ...room.seats.map((s) => s.col));
+
+  const headerStyle = { fontWeight: 'bold' as const, backgroundColor: '#E0E7FF' };
+  const laneStyle = { backgroundColor: '#FFF8E1', fontSize: 9 };
+  const seatStyle = { backgroundColor: '#EEF4FF' };
+
+  const sheetData: any[][] = [];
+  sheetData.push([{ value: collegeName, fontWeight: 'bold', fontSize: 14 }]);
+  sheetData.push([{ value: `Examination Seating Plan — ${examName}` }]);
+  sheetData.push([{ value: `Room: ${room.name}   Date: ${examDate}   Total students: ${[...seatToStudent.values()].filter(Boolean).length}` }]);
+  if (subjectAssignments.length > 0) {
+    const branchYearsInRoom = new Set([...seatToStudent.values()].filter((s): s is Student => !!s).map((s) => `${s.branch}|${s.year}`));
+    const subjectsInRoom = subjectAssignments.filter((a) => branchYearsInRoom.has(`${a.branch}|${a.year}`));
+    if (subjectsInRoom.length > 0) sheetData.push([{ value: `Subjects: ${subjectsInRoom.map((s) => `${s.branch}-Y${s.year}: ${s.subjectName}`).join(' | ')}` }]);
+  }
+  sheetData.push([]);
+
+  if (laneDirection === 'column') {
+    sheetData.push([null, ...Array.from({ length: maxCol }, (_, i) => ({ value: laneText(laneByIndex.get(i + 1)), ...laneStyle }))]);
+  }
+  sheetData.push([{ value: '', ...headerStyle }, ...Array.from({ length: maxCol }, (_, i) => ({ value: `C${i + 1}`, ...headerStyle }))]);
+
+  for (const [rowIndex, seats] of sortedRows) {
+    const byCol = new Map(seats.map((s) => [s.col, s]));
+    const row: any[] = [];
+    if (laneDirection === 'row') row.push({ value: laneText(laneByIndex.get(rowIndex)), ...laneStyle });
+    row.push({ value: `R${rowIndex}`, ...headerStyle });
+    for (let c = 1; c <= maxCol; c++) {
+      const seat = byCol.get(c);
+      if (!seat) {
+        row.push(null);
+        continue;
+      }
+      if (seat.blocked) {
+        row.push({ value: '×', backgroundColor: '#EEEEEE', color: '#999999' });
+        continue;
+      }
+      const student = seatToStudent.get(seat.id);
+      if (!student) {
+        row.push(null);
+        continue;
+      }
+      const sub = laneDirection === 'seat' ? ` (${seatText(laneSubjects!.seats[seat.id])})` : '';
+      row.push({ value: `${student.rollNumber}${sub}`, ...seatStyle });
+    }
+    sheetData.push(row);
+  }
+
+  sheetData.push([]);
+  sheetData.push([{ value: `Invigilator: ${invigilatorNames.length > 0 ? invigilatorNames.join(', ') : '______________________'}` }]);
+  sheetData.push([{ value: 'Signature: ______________________' }]);
+
+  const sheets: any[] = [{ sheet: room.name, data: sheetData }];
+
+  if (laneDirection !== 'none') {
+    const legendLabel = laneDirection === 'row' ? 'Row' : laneDirection === 'column' ? 'Column' : 'Group';
+    const legendRows: any[][] =
+      laneDirection === 'seat'
+        ? [...new Map(Object.values(laneSubjects!.seats).map((g) => [g.groupKey, g])).values()]
+            .sort((a, b) => a.branch.localeCompare(b.branch) || a.year - b.year)
+            .map((g) => [`${g.branch}-Y${g.year}`, groupText(g)])
+        : (laneSubjects?.lanes ?? []).map((lane) => [
+            `${legendLabel} ${lane.index}`,
+            lane.mixed ? 'Mixed: ' + lane.groups.map((g) => `${g.branch}-Y${g.year} ${groupText(g)}`).join(' / ') : groupText(lane.groups[0]!),
+          ]);
+    sheets.push({ sheet: 'Legend', data: [[{ value: legendLabel, ...headerStyle }, { value: 'Subject', ...headerStyle }], ...legendRows] });
+  }
+
+  const safeName = `${examName}_${room.name}`.replace(/[^a-z0-9]+/gi, '_');
+  await writeExcelFile(sheets as any).toFile(`${safeName}_seating.xlsx`);
 }

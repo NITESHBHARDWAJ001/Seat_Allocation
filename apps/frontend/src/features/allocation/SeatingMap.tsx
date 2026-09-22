@@ -37,8 +37,8 @@ export default function SeatingMap({
     adjacencyRules: allocation.configSnapshot.adjacencyRules,
   });
   const laneByIndex = new Map<number, LaneSubjectLabel>(laneSubjects.lanes.map((l) => [l.index, l]));
-  const laneText = (lane: LaneSubjectLabel): string =>
-    lane.groups.map((g) => `${g.branch}-Y${g.year}: ${g.subjectName ?? 'no subject'}`).join(' | ');
+  const groupText = (g: LaneGroupLabel): string => (g.subjectName ? `${g.subjectName}${g.subjectCode ? ` (${g.subjectCode})` : ''}` : `${g.branch}-Y${g.year}: no subject`);
+  const laneText = (lane: LaneSubjectLabel): string => lane.groups.map((g) => `${g.branch}-Y${g.year}: ${groupText(g)}`).join(' | ');
   const laneBadge = (lane: LaneSubjectLabel | undefined) =>
     lane ? (
       <div
@@ -47,10 +47,11 @@ export default function SeatingMap({
           lane.mixed ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-brand-50 border-brand-200 text-brand-800'
         }`}
       >
-        {lane.mixed ? `Mixed: ${laneText(lane)}` : (lane.groups[0]!.subjectName ?? `${lane.groups[0]!.branch}-Y${lane.groups[0]!.year}: no subject`)}
+        {lane.mixed ? `Mixed: ${laneText(lane)}` : groupText(lane.groups[0]!)}
       </div>
     ) : null;
-  const seatSubject = (label: LaneGroupLabel | undefined) => (label ? (label.subjectName ?? 'no subject') : '');
+  const seatSubject = (label: LaneGroupLabel | undefined) => (label ? groupText(label) : '');
+  const laneLabel = laneSubjects.direction === 'row' ? 'Row' : laneSubjects.direction === 'column' ? 'Column' : '';
 
   const subjectsInRoom = subjectAssignments.filter((a) => branchYearsInRoom.has(`${a.branch}|${a.year}`));
 
@@ -83,7 +84,7 @@ export default function SeatingMap({
                     style={{ writingMode: 'vertical-rl' }}
                     className={`text-[10px] max-h-24 overflow-hidden rounded border px-0.5 ${lane.mixed ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-brand-50 border-brand-200 text-brand-800'}`}
                   >
-                    {lane.mixed ? `Mixed: ${laneText(lane)}` : (lane.groups[0]!.subjectName ?? 'no subject')}
+                    {lane.mixed ? `Mixed: ${laneText(lane)}` : groupText(lane.groups[0]!)}
                   </div>
                 ) : null;
               }
@@ -111,6 +112,24 @@ export default function SeatingMap({
           };
         }}
       />
+      {laneSubjects.direction !== 'none' && (
+        <div className="mt-3 text-xs text-slate-600 space-y-0.5">
+          <div className="font-medium text-slate-700">Subject legend</div>
+          {laneSubjects.direction === 'seat'
+            ? [...new Map(Object.values(laneSubjects.seats).map((g) => [g.groupKey, g])).values()]
+                .sort((a, b) => a.branch.localeCompare(b.branch) || a.year - b.year)
+                .map((g) => (
+                  <div key={g.groupKey}>
+                    {g.branch}-Y{g.year} — {groupText(g)}
+                  </div>
+                ))
+            : laneSubjects.lanes.map((lane) => (
+                <div key={lane.index}>
+                  {laneLabel} {lane.index} — {lane.mixed ? `Mixed: ${laneText(lane)}` : groupText(lane.groups[0]!)}
+                </div>
+              ))}
+        </div>
+      )}
     </div>
   );
 }

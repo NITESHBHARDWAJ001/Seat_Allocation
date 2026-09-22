@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { AllocationResult, DutyRoster, Room, Student, SubjectAssignment, Teacher } from '../../vendor/core/index.js';
 import { computeRoomLaneSubjects } from '../../vendor/allocation-engine/index.js';
-import { allocationReportRows, buildPrintableRoomSheet, exportAllocationCsv, exportAllocationJson, printHtml } from '../../services/exportService.js';
+import { allocationReportRows, buildPrintableRoomSheet, exportAllocationCsv, exportAllocationJson, exportRoomSheetXlsx, printHtml } from '../../services/exportService.js';
 
 export default function ReportsPanel({
   allocation,
@@ -132,35 +132,35 @@ export default function ReportsPanel({
       <div className="card p-4">
         <h2 className="text-sm font-semibold text-slate-800 mb-3">Printable Room Sheets</h2>
         <div className="flex flex-wrap gap-2">
-          {usedRooms.map((room) => (
-            <button
-              key={room.id}
-              className="btn-secondary"
-              onClick={() =>
-                printHtml(
-                  buildPrintableRoomSheet({
-                    collegeName: 'Your College',
-                    examName,
-                    examDate,
-                    room,
-                    students,
-                    assignments: allocation.assignments,
-                    invigilatorNames: invigilatorNamesFor(room.id),
-                    subjectAssignments,
-                    laneSubjects: computeRoomLaneSubjects({
-                      room,
-                      assignments: allocation.assignments,
-                      students,
-                      subjectAssignments,
-                      adjacencyRules: allocation.configSnapshot.adjacencyRules,
-                    }),
-                  })
-                )
-              }
-            >
-              Print {room.name}
-            </button>
-          ))}
+          {usedRooms.map((room) => {
+            const roomSheetParams = () => ({
+              collegeName: 'Your College',
+              examName,
+              examDate,
+              room,
+              students,
+              assignments: allocation.assignments,
+              invigilatorNames: invigilatorNamesFor(room.id),
+              subjectAssignments,
+              laneSubjects: computeRoomLaneSubjects({
+                room,
+                assignments: allocation.assignments,
+                students,
+                subjectAssignments,
+                adjacencyRules: allocation.configSnapshot.adjacencyRules,
+              }),
+            });
+            return (
+              <div key={room.id} className="flex gap-1">
+                <button className="btn-secondary" onClick={() => printHtml(buildPrintableRoomSheet(roomSheetParams()))}>
+                  Print {room.name}
+                </button>
+                <button className="btn-secondary" onClick={() => void exportRoomSheetXlsx(roomSheetParams())}>
+                  Excel {room.name}
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
