@@ -96,13 +96,11 @@ describe('120-student CSE Year 3 + Year 4 fixture (vertical-only strict separati
     }
   });
 
-  it('reports the two unavoidable room-boundary continuity splits honestly (not hidden, not treated as a crash)', () => {
-    // Each year has 60 students but only 30 lane-seats per room (odd or
-    // even rows only), so a room-boundary split is mathematically
-    // unavoidable once minimizing room count - it must be reported, not
-    // silently dropped, and must never prevent seating.
-    expect(result.status).toBe('partial');
-    expect(result.validationReport.hardConstraints.find((c) => c.id === 'H_roll_continuity_strict')?.passed).toBe(false);
-    expect(result.validationReport.conflicts.filter((c) => c.type === 'roll_continuity_split')).toHaveLength(2);
+  it('treats the unavoidable room boundaries as valid: each room keeps one unbroken roll range', () => {
+    // Each year has 60 students but only 30 lane-seats per room, so a
+    // room boundary is unavoidable; that is fine as long as no room is re-entered.
+    expect(result.status).toBe('success');
+    expect(result.validationReport.hardConstraints.find((c) => c.id === 'H_roll_continuity_strict')?.passed).toBe(true);
+    expect(result.validationReport.conflicts.filter((c) => c.type === 'roll_continuity_split')).toHaveLength(0);
   });
 });

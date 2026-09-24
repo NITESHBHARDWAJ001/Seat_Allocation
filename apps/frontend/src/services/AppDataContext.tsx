@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import type { DutyRoster, Exam, Room, Student, Teacher } from '../vendor/core/index.js';
-import { dutyRosterRepository, examRepository, roomRepository, studentRepository, teacherRepository } from './repositories.js';
+import type { DutyRoster, Exam, ExamAttendance, Room, Student, Teacher } from '../vendor/core/index.js';
+import { attendanceRepository, dutyRosterRepository, examRepository, roomRepository, studentRepository, teacherRepository } from './repositories.js';
 
 interface AppDataState {
   students: Student[];
@@ -8,6 +8,7 @@ interface AppDataState {
   exams: Exam[];
   teachers: Teacher[];
   dutyRosters: DutyRoster[];
+  attendances: ExamAttendance[];
   loading: boolean;
   error: string | null;
   refreshStudents: () => Promise<void>;
@@ -15,6 +16,7 @@ interface AppDataState {
   refreshExams: () => Promise<void>;
   refreshTeachers: () => Promise<void>;
   refreshDutyRosters: () => Promise<void>;
+  refreshAttendances: () => Promise<void>;
   refreshAll: () => Promise<void>;
 }
 
@@ -26,6 +28,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const [exams, setExams] = useState<Exam[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [dutyRosters, setDutyRosters] = useState<DutyRoster[]>([]);
+  const [attendances, setAttendances] = useState<ExamAttendance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,12 +72,20 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const refreshAttendances = useCallback(async () => {
+    try {
+      setAttendances(await attendanceRepository.getAll());
+    } catch (e) {
+      setError(`Could not load attendance from local storage: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }, []);
+
   const refreshAll = useCallback(async () => {
     setLoading(true);
     setError(null);
-    await Promise.all([refreshStudents(), refreshRooms(), refreshExams(), refreshTeachers(), refreshDutyRosters()]);
+    await Promise.all([refreshStudents(), refreshRooms(), refreshExams(), refreshTeachers(), refreshDutyRosters(), refreshAttendances()]);
     setLoading(false);
-  }, [refreshStudents, refreshRooms, refreshExams, refreshTeachers, refreshDutyRosters]);
+  }, [refreshStudents, refreshRooms, refreshExams, refreshTeachers, refreshDutyRosters, refreshAttendances]);
 
   useEffect(() => {
     refreshAll();
@@ -87,6 +98,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       exams,
       teachers,
       dutyRosters,
+      attendances,
       loading,
       error,
       refreshStudents,
@@ -94,6 +106,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       refreshExams,
       refreshTeachers,
       refreshDutyRosters,
+      refreshAttendances,
       refreshAll,
     }),
     [
@@ -102,6 +115,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       exams,
       teachers,
       dutyRosters,
+      attendances,
       loading,
       error,
       refreshStudents,
@@ -109,6 +123,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       refreshExams,
       refreshTeachers,
       refreshDutyRosters,
+      refreshAttendances,
       refreshAll,
     ]
   );

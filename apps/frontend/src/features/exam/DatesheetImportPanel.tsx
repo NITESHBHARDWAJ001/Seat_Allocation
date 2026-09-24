@@ -141,7 +141,7 @@ export default function DatesheetImportPanel({
         endTime: first.endTime,
         studentIds,
         roomIds,
-        ruleConfig: defaultRuleConfig(),
+        ruleConfig: { ...defaultRuleConfig(), allocationMode: 'minimum-rooms', rollContinuity: { mode: 'strict', priority: 'critical' } },
         subjectAssignments,
         allocationIds: [],
         dutyRosterIds: [],

@@ -7,3 +7,4 @@ export * from './allocation.js';
 export * from './teacher.js';
 export * from './subject.js';
 export * from './duty.js';
+export * from './attendance.js';

@@ -6,6 +6,7 @@ import {
   buildBranchesInRoom,
   findConflictingTeacherIds,
   findWorkloadExcludedTeacherIds,
+  occupancyFromAllocation,
   previewManualDutyOverride,
   type ManualDutyPreview,
 } from '../../vendor/allocation-engine/index.js';
@@ -28,7 +29,7 @@ export default function DutyRosterPanel({
   allDutyRosters: DutyRoster[];
   onRosterChange: () => Promise<void>;
 }) {
-  const [seatsPerInvigilator, setSeatsPerInvigilator] = useState(30);
+  const [studentsPerInvigilator, setStudentsPerInvigilator] = useState(30);
   const [maxDutiesPerDay, setMaxDutiesPerDay] = useState<number | ''>('');
   const [maxDutiesTotal, setMaxDutiesTotal] = useState<number | ''>('');
   const [avoidOwnBranch, setAvoidOwnBranch] = useState(true);
@@ -43,6 +44,16 @@ export default function DutyRosterPanel({
   );
   const roster = examRosters.find((r) => r.id === exam.activeDutyRosterId) ?? examRosters[0];
   const branchesInRoom = useMemo(() => buildBranchesInRoom(seatAllocation), [seatAllocation]);
+  // Duty follows the seating: only rooms that actually have students get invigilators, sized by students seated.
+  const occupancy = useMemo(() => occupancyFromAllocation(seatAllocation), [seatAllocation]);
+  const allocationRooms = seatAllocation?.roomSnapshot ?? rooms;
+  const displayRooms = useMemo(
+    () => (seatAllocation ? allocationRooms.filter((r) => r.enabled && (occupancy[r.id] ?? 0) > 0) : rooms),
+    [seatAllocation, allocationRooms, occupancy, rooms]
+  );
+  const unusedRoomCount = seatAllocation ? allocationRooms.filter((r) => r.enabled).length - displayRooms.length : 0;
+  const staleSeating = !!(roster && seatAllocation && roster.basedOnAllocationId && roster.basedOnAllocationId !== seatAllocation.id);
+  const legacySizing = !!(roster && roster.basis !== 'students');
   const teachersById = useMemo(() => new Map(teachers.map((t) => [t.id, t])), [teachers]);
   const roomsById = useMemo(() => new Map(rooms.map((r) => [r.id, r])), [rooms]);
 
@@ -59,8 +70,9 @@ export default function DutyRosterPanel({
       const next = allocateDuties({
         examId: exam.id,
         teachers,
-        rooms,
-        seatsPerInvigilator,
+        rooms: allocationRooms,
+        occupancy,
+        seatsPerInvigilator: studentsPerInvigilator,
         avoidOwnBranchInvigilation: avoidOwnBranch,
         maxDutiesPerDay: perDay,
         maxDutiesTotal: total,
@@ -80,13 +92,13 @@ export default function DutyRosterPanel({
 
   function handleRoomClick(roomId: string) {
     if (!moveTeacherId || !roster) return;
-    const preview = previewManualDutyOverride(roster, moveTeacherId, roomId, teachers, rooms, branchesInRoom);
+    const preview = previewManualDutyOverride(roster, moveTeacherId, roomId, teachers, allocationRooms, branchesInRoom);
     setPending({ teacherId: moveTeacherId, roomId, preview });
   }
 
   async function confirmMove(force: boolean) {
     if (!pending || !roster) return;
-    const updated = applyManualDutyOverride(roster, pending.teacherId, pending.roomId, force, teachers, rooms, branchesInRoom);
+    const updated = applyManualDutyOverride(roster, pending.teacherId, pending.roomId, force, teachers, allocationRooms, branchesInRoom);
     await dutyRosterRepository.update(updated.id, updated);
     setPending(null);
     setMoveTeacherId(null);
@@ -97,13 +109,13 @@ export default function DutyRosterPanel({
     <div className="card p-4">
       <div className="flex flex-wrap items-end gap-3 mb-3">
         <h2 className="text-sm font-semibold text-slate-800 self-center">Duty Roster (Invigilators)</h2>
-        <Field label="Seats per invigilator">
+        <Field label="Students per invigilator">
           <input
             type="number"
             min={1}
             className="input w-20"
-            value={seatsPerInvigilator}
-            onChange={(e) => setSeatsPerInvigilator(Math.max(1, Number(e.target.value) || 1))}
+            value={studentsPerInvigilator}
+            onChange={(e) => setStudentsPerInvigilator(Math.max(1, Number(e.target.value) || 1))}
           />
         </Field>
         <Field label="Max duties / day">
@@ -130,12 +142,34 @@ export default function DutyRosterPanel({
           <input type="checkbox" checked={avoidOwnBranch} onChange={(e) => setAvoidOwnBranch(e.target.checked)} />
           Avoid own-branch invigilation
         </label>
-        <button className="btn-primary ml-auto" onClick={handleGenerate} disabled={generating || teachers.length === 0 || rooms.length === 0}>
+        <button className="btn-primary ml-auto" onClick={handleGenerate} disabled={generating || teachers.length === 0 || !seatAllocation || displayRooms.length === 0}>
           {generating ? 'Generating…' : roster ? 'Regenerate Duty Roster' : 'Generate Duty Roster'}
         </button>
       </div>
 
       {error && <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{error}</div>}
+
+      {!seatAllocation && (
+        <div className="mb-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+          Generate the seat allocation first - duty is given only to rooms that actually have students, sized by how many are seated.
+        </div>
+      )}
+      {staleSeating && (
+        <div className="mb-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+          The seating was regenerated after this duty roster was made, so it may not match the rooms in use now. Click Regenerate Duty Roster.
+        </div>
+      )}
+      {roster && legacySizing && seatAllocation && !staleSeating && (
+        <div className="mb-3 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
+          This roster was sized by room capacity. Regenerate to size it by students seated and skip unused rooms.
+        </div>
+      )}
+      {seatAllocation && unusedRoomCount > 0 && (
+        <div className="mb-2 text-xs text-slate-500">
+          {unusedRoomCount} assigned room(s) have no students seated and get no duty.
+        </div>
+      )}
+      <p className="mb-2 text-xs text-slate-400">For fair sharing of duties across a date range (e.g. a sessional) use the Duty Windows page.</p>
 
       {!roster && <div className="text-sm text-slate-500">No duty roster generated yet.</div>}
 
@@ -203,7 +237,7 @@ export default function DutyRosterPanel({
           )}
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {rooms.map((room) => {
+            {displayRooms.map((room) => {
               const assigned = roster.assignments.filter((a) => a.roomId === room.id);
               const target = roster.roomDutyTargets[room.id] ?? 1;
               return (
@@ -215,7 +249,7 @@ export default function DutyRosterPanel({
                   }`}
                 >
                   <div className="font-medium text-slate-800">
-                    {room.name} <span className="text-xs text-slate-400">({assigned.length}/{target})</span>
+                    {room.name} <span className="text-xs text-slate-400">({assigned.length}/{target}{occupancy[room.id] ? ` · ${occupancy[room.id]} students` : ''})</span>
                   </div>
                   {assigned.length === 0 ? (
                     <div className="text-xs text-red-600">No invigilator assigned</div>

@@ -7,3 +7,4 @@ export * from './allocationRepository.js';
 export * from './settingsRepository.js';
 export * from './teacherRepository.js';
 export * from './dutyRosterRepository.js';
+export * from './attendanceRepository.js';

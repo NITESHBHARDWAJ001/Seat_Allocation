@@ -85,13 +85,33 @@ export function planStrictContinuityLanes(students: Student[], rooms: Room[], ru
   }
   for (const list of continuityGroups.values()) list.sort((a, b) => compareRollNumbers(a.rollNumber, b.rollNumber));
 
-  // Lane index per distinct attribute value (sorted for determinism).
+  // Lane per distinct attribute value. With 2+ values only TWO physical lanes (parity classes) are ever
+  // needed: same-parity cells are never H/V adjacent, so any set of values sharing a parity can be filled
+  // one after another without breaking the separation rule - and two lanes let every room be filled
+  // completely (one lane per parity) instead of only 1/N of each room. Values are packed onto the two
+  // lanes largest-first so both lanes hold about the same number of students.
   let laneIndexByValue: Map<string, number> | null = null;
   let laneCount = 1;
   if (laneRule) {
-    const values = [...new Set(students.map((s) => studentGroupKey(s, laneRule.attribute)))].sort();
-    laneCount = values.length;
-    laneIndexByValue = new Map(values.map((v, i) => [v, i]));
+    const weight = new Map<string, number>();
+    for (const s of students) {
+      const v = studentGroupKey(s, laneRule.attribute);
+      weight.set(v, (weight.get(v) ?? 0) + 1);
+    }
+    const values = [...weight.keys()].sort();
+    if (values.length <= 1) {
+      laneCount = 1;
+      laneIndexByValue = new Map(values.map((v) => [v, 0]));
+    } else {
+      laneCount = 2;
+      const load = [0, 0];
+      laneIndexByValue = new Map();
+      for (const v of values.slice().sort((a, b) => weight.get(b)! - weight.get(a)! || a.localeCompare(b))) {
+        const lane = load[0]! <= load[1]! ? 0 : 1;
+        laneIndexByValue.set(v, lane);
+        load[lane]! += weight.get(v)!;
+      }
+    }
   }
   const laneOf = (student: Student): number => (laneIndexByValue ? laneIndexByValue.get(studentGroupKey(student, laneRule!.attribute)) ?? 0 : 0);
 

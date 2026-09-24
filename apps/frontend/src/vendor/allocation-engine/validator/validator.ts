@@ -270,30 +270,36 @@ export function validateAllocation(
     }
     for (const group of continuityGroups.values()) {
       const sorted = group.slice().sort((a, b) => compareRollNumbers(a.rollNumber, b.rollNumber));
-      for (let i = 0; i < sorted.length - 1; i++) {
-        const s1 = sorted[i]!;
-        const s2 = sorted[i + 1]!;
-        const a1 = seatByStudent.get(s1.id);
-        const a2 = seatByStudent.get(s2.id);
-        if (!a1 || !a2) continue; // an unallocated student is already reported elsewhere
-        if (a1.roomId !== a2.roomId) {
-          rollContinuityStrictPassed = false;
-          conflicts.push(
-            makeConflict({
-              type: 'roll_continuity_split',
-              severity: 'medium',
-              seatIds: [a1.seatId, a2.seatId],
-              studentIds: [s1.id, s2.id],
-              description: `Roll-consecutive students ${s1.rollNumber} and ${s2.rollNumber} (${s1.branch}, Year ${s1.year}) are split across different rooms despite strict roll continuity.`,
-              suggestedResolution: 'Move one of these students into the other one\'s room, or free up capacity there.',
-            })
-          );
+      // A cohort bigger than one room (or sharing rooms with other cohorts) must span several rooms, so a
+      // boundary between two rooms is unavoidable. What strict continuity forbids is a room being LEFT and
+      // then RE-ENTERED: each room must hold one unbroken roll range of the cohort.
+      const leftRooms = new Set<string>();
+      let prev: { student: Student; roomId: string; seatId: string } | null = null;
+      for (const student of sorted) {
+        const a = seatByStudent.get(student.id);
+        if (!a) continue; // an unallocated student is already reported elsewhere
+        if (prev && prev.roomId !== a.roomId) {
+          leftRooms.add(prev.roomId);
+          if (leftRooms.has(a.roomId)) {
+            rollContinuityStrictPassed = false;
+            conflicts.push(
+              makeConflict({
+                type: 'roll_continuity_split',
+                severity: 'medium',
+                seatIds: [prev.seatId, a.seatId],
+                studentIds: [prev.student.id, student.id],
+                description: `Roll order of ${student.branch} Year ${student.year} leaves and later returns to the same room (${prev.student.rollNumber} -> ${student.rollNumber}), breaking strict roll continuity.`,
+                suggestedResolution: "Keep each room's share of this cohort as one unbroken roll range.",
+              })
+            );
+          }
         }
+        prev = { student, roomId: a.roomId, seatId: a.seatId };
       }
     }
     hardConstraints.push({
       id: 'H_roll_continuity_strict',
-      label: 'Strict roll continuity satisfied (roll-consecutive students share a room)',
+      label: 'Strict roll continuity satisfied (each room holds one unbroken roll range per branch/year)',
       passed: rollContinuityStrictPassed,
     });
   }

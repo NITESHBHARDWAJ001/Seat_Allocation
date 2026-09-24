@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import {
   MemoryAllocationRepository,
+  MemoryAttendanceRepository,
   MemoryDutyRosterRepository,
   MemoryExamRepository,
   MemoryRoomRepository,
@@ -12,6 +13,7 @@ import {
 import { createGoogleSheetsRepositories } from './vendor/googlesheets-repositories/index.js';
 import type {
   AllocationRepository,
+  AttendanceRepository,
   DutyRosterRepository,
   ExamRepository,
   RoomRepository,
@@ -38,6 +40,7 @@ let allocationRepository: AllocationRepository;
 let settingsRepository: SettingsRepository;
 let teacherRepository: TeacherRepository;
 let dutyRosterRepository: DutyRosterRepository;
+let attendanceRepository: AttendanceRepository;
 
 if (backend === 'sheets') {
   const repos = createGoogleSheetsRepositories();
@@ -48,6 +51,7 @@ if (backend === 'sheets') {
   settingsRepository = repos.settingsRepository;
   teacherRepository = repos.teacherRepository;
   dutyRosterRepository = repos.dutyRosterRepository;
+  attendanceRepository = repos.attendanceRepository;
   console.log('[data backend] Google Sheets');
 } else {
   const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -61,7 +65,8 @@ if (backend === 'sheets') {
   settingsRepository = new MemorySettingsRepository(join(dataDir, 'settings.json'));
   teacherRepository = new MemoryTeacherRepository(join(dataDir, 'teachers.json'));
   dutyRosterRepository = new MemoryDutyRosterRepository(join(dataDir, 'dutyRosters.json'));
+  attendanceRepository = new MemoryAttendanceRepository(join(dataDir, 'attendance.json'));
   console.log(`[data backend] JSON files (${dataDir})`);
 }
 
-export { studentRepository, roomRepository, examRepository, allocationRepository, settingsRepository, teacherRepository, dutyRosterRepository };
+export { studentRepository, roomRepository, examRepository, allocationRepository, settingsRepository, teacherRepository, dutyRosterRepository, attendanceRepository };

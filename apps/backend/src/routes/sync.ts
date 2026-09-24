@@ -6,6 +6,7 @@ import {
   allocationRepository,
   teacherRepository,
   dutyRosterRepository,
+  attendanceRepository,
 } from '../repositories.js';
 
 /**
@@ -30,6 +31,7 @@ const repositories: Record<string, EntityRepo> = {
   allocations: allocationRepository as unknown as EntityRepo,
   teachers: teacherRepository as unknown as EntityRepo,
   dutyRosters: dutyRosterRepository as unknown as EntityRepo,
+  attendance: attendanceRepository as unknown as EntityRepo,
 };
 
 export const syncRouter = Router();

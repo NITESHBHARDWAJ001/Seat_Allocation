@@ -1,6 +1,6 @@
-export type SyncEntityName = 'students' | 'rooms' | 'exams' | 'allocations' | 'teachers' | 'dutyRosters';
+export type SyncEntityName = 'students' | 'rooms' | 'exams' | 'allocations' | 'teachers' | 'dutyRosters' | 'attendance';
 
-export const SYNC_ENTITIES: SyncEntityName[] = ['students', 'rooms', 'exams', 'allocations', 'teachers', 'dutyRosters'];
+export const SYNC_ENTITIES: SyncEntityName[] = ['students', 'rooms', 'exams', 'allocations', 'teachers', 'dutyRosters', 'attendance'];
 
 function base(backendUrl: string): string {
   return backendUrl.replace(/\/+$/, '');

@@ -20,3 +20,6 @@ export * from './subjects/subjectAssignment.js';
 export * from './scheduling/conflicts.js';
 export * from './rooms/roomSelection.js';
 export * from './subjects/laneSubjects.js';
+export * from './duty/dutyWindowPlanner.js';
+export * from './attendance/rollRanges.js';
+export * from './attendance/memo.js';

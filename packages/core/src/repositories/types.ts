@@ -4,6 +4,7 @@ import type { Exam } from '../models/exam.js';
 import type { AllocationResult } from '../models/allocation.js';
 import type { Teacher } from '../models/teacher.js';
 import type { DutyRoster } from '../models/duty.js';
+import type { ExamAttendance } from '../models/attendance.js';
 
 export interface StudentQuery {
   branch?: string;
@@ -71,5 +72,15 @@ export interface DutyRosterRepository {
   getByExamId(examId: string): Promise<DutyRoster[]>;
   create(roster: DutyRoster): Promise<DutyRoster>;
   update(id: string, patch: Partial<DutyRoster>): Promise<DutyRoster>;
+  remove(id: string): Promise<void>;
+}
+
+export interface AttendanceRepository {
+  getAll(): Promise<ExamAttendance[]>;
+  getById(id: string): Promise<ExamAttendance | undefined>;
+  /** At most one attendance record exists per exam. */
+  getByExamId(examId: string): Promise<ExamAttendance | undefined>;
+  create(attendance: ExamAttendance): Promise<ExamAttendance>;
+  update(id: string, patch: Partial<ExamAttendance>): Promise<ExamAttendance>;
   remove(id: string): Promise<void>;
 }

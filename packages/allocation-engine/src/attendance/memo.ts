@@ -1,0 +1,191 @@
+import {
+  compareRollNumbers,
+  normalizeRoll,
+  type AllocationResult,
+  type AttendanceEntry,
+  type Exam,
+  type ExamAttendance,
+  type Student,
+} from '@exam-allocator/core';
+import { resolveSubjectForGroup } from '../subjects/subjectAssignment.js';
+import { formatRollRanges } from './rollRanges.js';
+
+export interface MemoRoomRow {
+  roomId: string;
+  roomName: string;
+  /** Present candidates of this paper who sat in this room (sorted). */
+  rolls: string[];
+  /** e.g. "2025301701 – 2025301720, 2025301722" */
+  ranges: string;
+  count: number;
+}
+
+/**
+ * One "Forwarding memo for secrecy answer-book": ONE paper of ONE branch and semester in ONE sitting.
+ * Terminology follows the printed form: (A) roll numbers sent, (B) total candidates, (C) absentees,
+ * (D) unfair-means cases, (E) stray cases, (F) grand total.
+ */
+export interface SecrecyMemo {
+  /** exam + branch + subject code + semester - unique per memo */
+  key: string;
+  examId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  branch: string;
+  year: number;
+  semester?: number;
+  subjectName: string;
+  /** Subject code and paper code are the same thing. */
+  subjectCode: string;
+  rooms: MemoRoomRow[];
+  /** (A) total answer books listed in the room rows */
+  answerBooks: number;
+  /** (B) candidates filled in column (A) */
+  candidates: number;
+  /** (C) */
+  absent: AttendanceEntry[];
+  /** (D) */
+  umc: AttendanceEntry[];
+  /** (E) */
+  stray: AttendanceEntry[];
+  /** everyone on the paper's list, present or not - used by reports */
+  onRoll: number;
+  /** Roll numbers of everyone on the paper's list, in roll order (reports draw present / absent from this). */
+  rollList: string[];
+  /** (F) "present" part: answer books received = (A) + (D) + (E) */
+  presentTotal: number;
+  /** (F) "absent" part */
+  absentTotal: number;
+  /** (F) grand total = presentTotal + absentTotal */
+  grandTotal: number;
+  /** students with no seat in the active allocation (their book cannot be placed in a room row) */
+  unseated: string[];
+}
+
+export interface BuildMemosInput {
+  exam: Exam;
+  students: Student[]; // the exam's students
+  allocation?: AllocationResult;
+  attendance?: ExamAttendance;
+}
+
+function paperOf(exam: Exam, student: Student) {
+  const subject = resolveSubjectForGroup(student.branch, student.year, exam.subjectAssignments);
+  return { subjectName: subject?.subjectName ?? '(subject not set)', subjectCode: subject?.subjectCode ?? '' };
+}
+
+function modeOf(values: Array<number | undefined>): number | undefined {
+  const counts = new Map<number, number>();
+  for (const v of values) if (v !== undefined) counts.set(v, (counts.get(v) ?? 0) + 1);
+  let best: number | undefined;
+  let bestCount = 0;
+  for (const [v, c] of counts) {
+    if (c > bestCount) {
+      best = v;
+      bestCount = c;
+    }
+  }
+  return best;
+}
+
+/** Builds one memo per branch + paper + semester found in the exam. Deterministic order: branch, year. */
+export function buildSecrecyMemos({ exam, students, allocation, attendance }: BuildMemosInput): SecrecyMemo[] {
+  const entries = attendance?.entries ?? {};
+  const roomOf = new Map<string, { roomId: string; roomName: string }>();
+  const roomOrder: string[] = [];
+  if (allocation) {
+    for (const room of allocation.roomSnapshot) roomOrder.push(room.id);
+    const roomNameById = new Map(allocation.roomSnapshot.map((r) => [r.id, r.name] as const));
+    for (const a of allocation.assignments) roomOf.set(a.studentId, { roomId: a.roomId, roomName: roomNameById.get(a.roomId) ?? a.roomId });
+  }
+
+  // Group students by branch + paper + semester.
+  const groups = new Map<string, Student[]>();
+  const meta = new Map<string, { subjectName: string; subjectCode: string; year: number }>();
+  for (const student of students) {
+    if (!student.active) continue;
+    const paper = paperOf(exam, student);
+    const sem = student.semester ?? '';
+    const key = `${exam.id}|${student.branch}|${paper.subjectCode || paper.subjectName}|${sem}`;
+    const list = groups.get(key) ?? [];
+    list.push(student);
+    groups.set(key, list);
+    if (!meta.has(key)) meta.set(key, { ...paper, year: student.year });
+  }
+
+  const memos: SecrecyMemo[] = [];
+  for (const [key, list] of groups) {
+    const m = meta.get(key)!;
+    const listRolls = new Set(list.map((s) => normalizeRoll(s.rollNumber)));
+    const absent: AttendanceEntry[] = [];
+    const umc: AttendanceEntry[] = [];
+    const rowsByRoom = new Map<string, MemoRoomRow>();
+    const unseated: string[] = [];
+    const branch = list[0]!.branch;
+
+    for (const student of list) {
+      const roll = normalizeRoll(student.rollNumber);
+      const entry = entries[roll];
+      if (entry?.mark === 'absent') {
+        absent.push(entry);
+        continue;
+      }
+      if (entry?.mark === 'umc') {
+        umc.push(entry);
+        continue;
+      }
+      const room = roomOf.get(student.id);
+      if (!room) {
+        unseated.push(student.rollNumber);
+        continue;
+      }
+      const row = rowsByRoom.get(room.roomId) ?? { roomId: room.roomId, roomName: room.roomName, rolls: [], ranges: '', count: 0 };
+      row.rolls.push(student.rollNumber);
+      rowsByRoom.set(room.roomId, row);
+    }
+
+    // Strays of this branch (roll not on the exam list).
+    const stray = Object.values(entries).filter((e) => e.mark === 'stray' && !listRolls.has(e.rollNumber) && e.branch === branch);
+
+    const rooms: MemoRoomRow[] = [...rowsByRoom.values()]
+      .map((row) => {
+        const rolls = row.rolls.slice().sort(compareRollNumbers);
+        return { ...row, rolls, ranges: formatRollRanges(rolls), count: rolls.length };
+      })
+      .sort((a, b) => {
+        const ia = roomOrder.indexOf(a.roomId);
+        const ib = roomOrder.indexOf(b.roomId);
+        return (ia === -1 ? 1e9 : ia) - (ib === -1 ? 1e9 : ib);
+      });
+
+    const answerBooks = rooms.reduce((sum, r) => sum + r.count, 0);
+    const presentTotal = answerBooks + umc.length + stray.length;
+    const byRoll = (a: AttendanceEntry, b: AttendanceEntry) => compareRollNumbers(a.rollNumber, b.rollNumber);
+    memos.push({
+      key,
+      examId: exam.id,
+      date: exam.date,
+      startTime: exam.startTime,
+      endTime: exam.endTime,
+      branch,
+      year: m.year,
+      semester: modeOf(list.map((s) => s.semester)),
+      subjectName: m.subjectName,
+      subjectCode: m.subjectCode,
+      rooms,
+      answerBooks,
+      candidates: answerBooks,
+      absent: absent.sort(byRoll),
+      umc: umc.sort(byRoll),
+      stray: stray.sort(byRoll),
+      onRoll: list.length,
+      rollList: list.map((s) => s.rollNumber).sort(compareRollNumbers),
+      presentTotal,
+      absentTotal: absent.length,
+      grandTotal: presentTotal + absent.length,
+      unseated,
+    });
+  }
+  return memos.sort((a, b) => a.branch.localeCompare(b.branch) || a.year - b.year);
+}

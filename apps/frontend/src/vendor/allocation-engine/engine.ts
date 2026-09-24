@@ -56,23 +56,22 @@ export function generateAllocation(params: GenerateAllocationParams): Allocation
     };
   }
 
-  // allocationMode 'minimum-rooms': try the fewest priority-ordered rooms
-  // that should cover everyone first. If seating still comes up short (e.g.
-  // strict adjacency eats into effective capacity more than raw seat counts
-  // suggest), fall back to the full room set - minimizing room count never
-  // takes priority over actually seating every student.
+  // allocationMode 'minimum-rooms': start from the fewest priority-ordered rooms whose raw seat count
+  // covers everyone, then add ONE more room (next by priority) at a time while anyone is still unseated.
+  // Strict adjacency / continuity lanes routinely eat into effective capacity, so raw seat counts alone
+  // under-estimate the rooms needed - growing gradually keeps the room count as small as is actually
+  // feasible instead of jumping straight to every room. Seating everyone always beats minimizing rooms.
   let candidateRooms = rooms;
+  let solveResult;
   if (params.ruleConfig.allocationMode === 'minimum-rooms') {
+    const ordered = [...rooms].sort((a, b) => a.priority - b.priority);
     candidateRooms = selectMinimalRooms(rooms, students.length);
-  }
-
-  let solveResult = solveAllocation(students, candidateRooms, params.ruleConfig, seed);
-  if (
-    params.ruleConfig.allocationMode === 'minimum-rooms' &&
-    solveResult.unallocatedStudentIds.length > 0 &&
-    candidateRooms.length < rooms.length
-  ) {
-    candidateRooms = rooms;
+    solveResult = solveAllocation(students, candidateRooms, params.ruleConfig, seed);
+    while (solveResult.unallocatedStudentIds.length > 0 && candidateRooms.length < ordered.length) {
+      candidateRooms = ordered.slice(0, candidateRooms.length + 1);
+      solveResult = solveAllocation(students, candidateRooms, params.ruleConfig, seed);
+    }
+  } else {
     solveResult = solveAllocation(students, candidateRooms, params.ruleConfig, seed);
   }
 

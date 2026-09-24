@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { generateAllocation } from '../engine.js';
+import { validateAllocation } from '../validator/validator.js';
 import { baseRuleConfig, makeRegularRoom, makeStudent, makeStudents } from './helpers.js';
 
 describe('roll number continuity', () => {
@@ -73,24 +74,42 @@ describe('roll number continuity', () => {
     expect(roomIds.size).toBe(1);
   });
 
-  it('reports a genuine hard-constraint failure (not a hidden soft score) when strict continuity cannot be held', () => {
+  it('accepts one unavoidable room boundary: each room holds one unbroken roll range', () => {
     const roomA = makeRegularRoom('A', 3, 5); // 15 seats - too small for the whole group of 20
-    const roomB = makeRegularRoom('B', 3, 5); // 15 seats
+    const roomB = makeRegularRoom('B', 3, 5);
     const students = makeStudents(20, 'CSE', 'CSE');
-
     const ruleConfig = baseRuleConfig();
     ruleConfig.adjacencyRules = [];
     ruleConfig.rollContinuity = { mode: 'strict', priority: 'high' };
 
     const result = generateAllocation({ examId: 'e1', students, rooms: [roomA, roomB], ruleConfig });
 
-    // Everyone still gets seated (never sacrifice seating just to hold the
-    // room boundary) but the split is now an honest, visible hard-constraint
-    // failure and a reported conflict - not silently absorbed into a score.
     expect(result.unallocatedStudentIds).toHaveLength(0);
-    expect(result.status).toBe('partial');
-    const strictCheck = result.validationReport.hardConstraints.find((c) => c.id === 'H_roll_continuity_strict');
-    expect(strictCheck?.passed).toBe(false);
-    expect(result.validationReport.conflicts.some((c) => c.type === 'roll_continuity_split')).toBe(true);
+    expect(result.status).toBe('success');
+    expect(result.validationReport.hardConstraints.find((c) => c.id === 'H_roll_continuity_strict')?.passed).toBe(true);
+    const roomOf = new Map(result.assignments.map((x) => [x.studentId, x.roomId]));
+    const seq = students.map((st) => roomOf.get(st.id));
+    expect(seq.slice(0, 15).every((r) => r === seq[0])).toBe(true);
+    expect(seq.slice(15).every((r) => r === seq[15])).toBe(true);
+  });
+
+  it('reports a genuine hard-constraint failure when a room is left and re-entered', () => {
+    const roomA = makeRegularRoom('A', 1, 4);
+    const roomB = makeRegularRoom('B', 1, 4);
+    const students = makeStudents(4, 'CSE', 'CSE');
+    const ruleConfig = baseRuleConfig();
+    ruleConfig.adjacencyRules = [];
+    ruleConfig.rollContinuity = { mode: 'strict', priority: 'high' };
+    // roll order goes A, B, A, B - interleaved across rooms
+    const seat = (room: typeof roomA, n: number) => room.seats[n]!.id;
+    const assignments = [
+      { studentId: 'CSE-1', roomId: 'A', seatId: seat(roomA, 0) },
+      { studentId: 'CSE-2', roomId: 'B', seatId: seat(roomB, 0) },
+      { studentId: 'CSE-3', roomId: 'A', seatId: seat(roomA, 1) },
+      { studentId: 'CSE-4', roomId: 'B', seatId: seat(roomB, 1) },
+    ];
+    const report = validateAllocation(assignments, students, [roomA, roomB], ruleConfig);
+    expect(report.hardConstraints.find((c) => c.id === 'H_roll_continuity_strict')?.passed).toBe(false);
+    expect(report.conflicts.some((c) => c.type === 'roll_continuity_split')).toBe(true);
   });
 });

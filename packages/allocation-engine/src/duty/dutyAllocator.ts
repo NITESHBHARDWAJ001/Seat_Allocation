@@ -98,6 +98,35 @@ export function computeRoomDutyTargets(rooms: Room[], seatsPerInvigilator: numbe
   return targets;
 }
 
+/** Students seated per room in a finished seat allocation (roomId -> count). Rooms with nobody seated are absent. */
+export function occupancyFromAllocation(seatAllocation: AllocationResult | undefined): Record<string, number> {
+  const counts: Record<string, number> = {};
+  if (!seatAllocation) return counts;
+  for (const a of seatAllocation.assignments) counts[a.roomId] = (counts[a.roomId] ?? 0) + 1;
+  return counts;
+}
+
+/**
+ * Invigilators for occupied rooms only: ceil(students seated / studentsPerInvigilator),
+ * minimum 1, optionally overridden per room. Rooms with no students get no entry at all.
+ */
+export function computeOccupiedRoomTargets(
+  rooms: Room[],
+  occupancy: Record<string, number>,
+  studentsPerInvigilator: number,
+  overrides: Record<string, number> = {}
+): Record<string, number> {
+  const targets: Record<string, number> = {};
+  const per = Math.max(1, studentsPerInvigilator);
+  for (const room of rooms) {
+    const students = occupancy[room.id] ?? 0;
+    if (students <= 0) continue;
+    const override = overrides[room.id];
+    targets[room.id] = override !== undefined && override >= 1 ? Math.floor(override) : Math.max(1, Math.ceil(students / per));
+  }
+  return targets;
+}
+
 export interface AllocateDutiesParams {
   examId: string;
   teachers: Teacher[];
@@ -110,6 +139,17 @@ export interface AllocateDutiesParams {
   excludeTeacherIds?: Set<string>;
   seed?: number;
   version?: number;
+  /**
+   * Students seated per room. When given, only rooms with students get duty and
+   * the count follows students (not seat capacity); `seatsPerInvigilator` then
+   * means students per invigilator.
+   */
+  occupancy?: Record<string, number>;
+  /** Per-room override of the invigilator count (occupancy mode). */
+  roomTargetOverrides?: Record<string, number>;
+  /** Use this teacher order as-is (e.g. least-loaded first) instead of a seeded shuffle. */
+  orderedTeachers?: Teacher[];
+  windowId?: string;
 }
 
 /**
@@ -127,11 +167,16 @@ export function allocateDuties(params: AllocateDutiesParams): DutyRoster {
   const exclude = params.excludeTeacherIds ?? new Set<string>();
 
   const eligibleTeachers = params.teachers.filter((t) => t.active && !exclude.has(t.id));
-  const rooms = params.rooms.filter((r) => r.enabled);
+  let rooms = params.rooms.filter((r) => r.enabled);
+  if (params.occupancy) rooms = rooms.filter((r) => (params.occupancy![r.id] ?? 0) > 0);
   const branchesInRoom = params.avoidOwnBranchInvigilation ? buildBranchesInRoom(params.seatAllocation) : new Map<string, Set<string>>();
-  const roomDutyTargets = computeRoomDutyTargets(rooms, params.seatsPerInvigilator);
+  const roomDutyTargets = params.occupancy
+    ? computeOccupiedRoomTargets(rooms, params.occupancy, params.seatsPerInvigilator, params.roomTargetOverrides)
+    : computeRoomDutyTargets(rooms, params.seatsPerInvigilator);
 
-  const queue = rng.shuffle(eligibleTeachers);
+  const queue = params.orderedTeachers
+    ? params.orderedTeachers.filter((t) => t.active && !exclude.has(t.id))
+    : rng.shuffle(eligibleTeachers);
   const assignments: DutyAssignment[] = [];
   const roomCounts = new Map<string, number>(rooms.map((r) => [r.id, 0]));
 
@@ -179,5 +224,8 @@ export function allocateDuties(params: AllocateDutiesParams): DutyRoster {
     understaffedRoomIds,
     validationReport,
     version: params.version ?? 1,
+    windowId: params.windowId,
+    basedOnAllocationId: params.seatAllocation?.id,
+    basis: params.occupancy ? 'students' : 'seats',
   };
 }

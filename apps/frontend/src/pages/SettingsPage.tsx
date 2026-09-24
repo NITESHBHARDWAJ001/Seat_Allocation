@@ -4,6 +4,7 @@ import { getSyncSettings, saveSyncSettings, type SyncSettings } from '../service
 import { checkBackendHealth, pullEntities, pushEntities, SYNC_ENTITIES, type SyncEntityName } from '../services/backendSyncClient.js';
 import {
   allocationRepository,
+  attendanceRepository,
   dutyRosterRepository,
   examRepository,
   roomRepository,
@@ -11,6 +12,7 @@ import {
   teacherRepository,
 } from '../services/repositories.js';
 import PageHeader from '../components/PageHeader.js';
+import InstitutionCard from '../features/settings/InstitutionCard.js';
 
 const repositoriesByEntity: Record<SyncEntityName, { getAll: () => Promise<any[]>; create: (item: any) => Promise<any> }> = {
   students: studentRepository,
@@ -19,6 +21,7 @@ const repositoriesByEntity: Record<SyncEntityName, { getAll: () => Promise<any[]
   allocations: allocationRepository,
   teachers: teacherRepository,
   dutyRosters: dutyRosterRepository,
+  attendance: attendanceRepository,
 };
 
 type EntitySummary = { entity: SyncEntityName; message: string; ok: boolean };
@@ -101,6 +104,7 @@ export default function SettingsPage() {
     <div>
       <PageHeader title="Settings" subtitle="Manually sync local data with a shared spreadsheet backend" />
       <div className="p-6 space-y-6 max-w-2xl">
+        <InstitutionCard />
         <div className="card p-4 space-y-4">
           <label className="flex items-center gap-2">
             <input

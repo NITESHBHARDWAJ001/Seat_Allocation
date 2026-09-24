@@ -128,7 +128,8 @@ export default function ExamDetailPage() {
       const result = await runAllocationInWorker({
         examId: exam!.id,
         students: examStudents,
-        rooms: examRooms,
+        // 'minimum-rooms' grows from the fewest rooms, so it needs every enabled room to draw from.
+        rooms: ruleConfig.allocationMode === 'minimum-rooms' ? rooms.filter((r) => r.enabled) : examRooms,
         ruleConfig,
         version: allocations.length + 1,
         parentAllocationId: exam!.activeAllocationId,
@@ -138,6 +139,8 @@ export default function ExamDetailPage() {
         ruleConfig,
         allocationIds: [...exam!.allocationIds, result.id],
         activeAllocationId: result.id,
+        // rooms actually used (minimum-rooms mode may have grown the set) so duty/reports follow the real seating
+        ...(ruleConfig.allocationMode === 'minimum-rooms' ? { roomIds: result.roomSnapshot.map((r) => r.id) } : {}),
       });
       await refreshExams();
       await loadAllocations();

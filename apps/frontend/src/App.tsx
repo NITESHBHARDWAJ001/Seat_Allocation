@@ -9,6 +9,12 @@ import ExamsPage from './pages/ExamsPage.js';
 import ExamCreatePage from './pages/ExamCreatePage.js';
 import ExamDetailPage from './pages/ExamDetailPage.js';
 import DutyChartPage from './pages/DutyChartPage.js';
+import DutyWindowsPage from './pages/DutyWindowsPage.js';
+import AttendancePage from './pages/AttendancePage.js';
+import AttendanceExamPage from './pages/AttendanceExamPage.js';
+import AttendanceSheetsPage from './pages/AttendanceSheetsPage.js';
+import AttendanceMemosPage from './pages/AttendanceMemosPage.js';
+import AttendanceReportsPage from './pages/AttendanceReportsPage.js';
 import HelpPage from './pages/HelpPage.js';
 import SettingsPage from './pages/SettingsPage.js';
 
@@ -19,6 +25,8 @@ const navItems = [
   { to: '/teachers', label: 'Teachers' },
   { to: '/exams', label: 'Exams' },
   { to: '/duty-chart', label: 'Duty Chart' },
+  { to: '/duty-windows', label: 'Duty Windows' },
+  { to: '/attendance', label: 'Attendance' },
   { to: '/help', label: 'Help' },
   { to: '/settings', label: 'Settings' },
 ];
@@ -64,6 +72,12 @@ export default function App() {
           <Route path="/exams/new" element={<ExamCreatePage />} />
           <Route path="/exams/:examId" element={<ExamDetailPage />} />
           <Route path="/duty-chart" element={<DutyChartPage />} />
+          <Route path="/duty-windows" element={<DutyWindowsPage />} />
+          <Route path="/attendance" element={<AttendancePage />} />
+          <Route path="/attendance/reports" element={<AttendanceReportsPage />} />
+          <Route path="/attendance/:examId" element={<AttendanceExamPage />} />
+          <Route path="/attendance/:examId/sheets" element={<AttendanceSheetsPage />} />
+          <Route path="/attendance/:examId/memos" element={<AttendanceMemosPage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
