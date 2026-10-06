@@ -95,7 +95,7 @@ export default function AttendanceReportsPage() {
   return (
     <div>
       <PageHeader title="Attendance reports" subtitle="Branch-wise present, absent and unfair-means summary" actions={<Link to="/attendance" className="btn-ghost">All sittings</Link>} />
-      <div className="p-6 space-y-4">
+      <div className="p-4 sm:p-6 space-y-4">
         {crumb}
 
         {!branch && (

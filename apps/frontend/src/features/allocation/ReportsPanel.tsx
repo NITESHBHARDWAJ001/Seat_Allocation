@@ -54,7 +54,7 @@ export default function ReportsPanel({
       <div className="card p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-slate-800">Student-wise Allocation Report</h2>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <input className="input w-56" placeholder="Search roll number or name..." value={search} onChange={(e) => setSearch(e.target.value)} />
             <button className="btn-secondary" onClick={() => exportAllocationCsv(allocation, students, rooms, examName, subjectAssignments)}>
               Export CSV

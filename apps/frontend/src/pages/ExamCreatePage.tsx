@@ -149,7 +149,7 @@ export default function ExamCreatePage() {
   return (
     <div>
       <PageHeader title="New Exam" subtitle="Define the exam, select students and rooms, and configure allocation rules" />
-      <div className="p-6 space-y-6 max-w-5xl">
+      <div className="p-4 sm:p-6 space-y-6 max-w-5xl">
         <div className="card p-4 grid sm:grid-cols-4 gap-3">
           <div className="sm:col-span-2">
             <div className="label">Exam Name</div>

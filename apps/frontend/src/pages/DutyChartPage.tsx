@@ -83,7 +83,7 @@ export default function DutyChartPage() {
   return (
     <div>
       <PageHeader title="Duty Chart" subtitle="Every teacher's invigilation duty across all scheduled exams" />
-      <div className="p-6 space-y-4">
+      <div className="p-4 sm:p-6 space-y-4">
         <div className="flex flex-wrap gap-3 items-center">
           <input className="input max-w-xs" placeholder="Search teacher name..." value={search} onChange={(e) => setSearch(e.target.value)} />
           <select className="input max-w-xs" value={windowId} onChange={(e) => setWindowId(e.target.value)}>

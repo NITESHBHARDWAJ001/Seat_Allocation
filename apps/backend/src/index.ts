@@ -1,13 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { studentsRouter } from './routes/students.js';
-import { roomsRouter } from './routes/rooms.js';
-import { examsRouter } from './routes/exams.js';
-import { allocationsRouter } from './routes/allocations.js';
-import { teachersRouter } from './routes/teachers.js';
-import { dutyRouter } from './routes/duty.js';
-import { syncRouter } from './routes/sync.js';
 
 const app = express();
 
@@ -17,14 +10,31 @@ const allowedOrigins = process.env.CORS_ORIGIN?.split(',').map((o) => o.trim()).
 app.use(cors(allowedOrigins?.length ? { origin: allowedOrigins } : {}));
 app.use(express.json({ limit: '10mb' }));
 
-app.get('/api/health', (_req, res) => res.json({ ok: true }));
-app.use('/api/students', studentsRouter);
-app.use('/api/rooms', roomsRouter);
-app.use('/api/exams', examsRouter);
-app.use('/api/allocations', allocationsRouter);
-app.use('/api/teachers', teachersRouter);
-app.use('/api/duty', dutyRouter);
-app.use('/api/sync', syncRouter);
+app.get('/api/health', (_req, res) => res.json({ ok: true, mode: process.env.DATA_BACKEND ?? 'json' }));
+
+if ((process.env.DATA_BACKEND ?? 'json').toLowerCase() === 'postgres') {
+  // Multi-organization mode: logins, roles, organizations and chunked sync, all on Postgres.
+  const { mountMultiTenant } = await import('./multitenant/index.js');
+  await mountMultiTenant(app);
+} else {
+  // Single-tenant mode (json files or one Google Sheet): the original per-entity API, unchanged.
+  const [{ studentsRouter }, { roomsRouter }, { examsRouter }, { allocationsRouter }, { teachersRouter }, { dutyRouter }, { syncRouter }] = await Promise.all([
+    import('./routes/students.js'),
+    import('./routes/rooms.js'),
+    import('./routes/exams.js'),
+    import('./routes/allocations.js'),
+    import('./routes/teachers.js'),
+    import('./routes/duty.js'),
+    import('./routes/sync.js'),
+  ]);
+  app.use('/api/students', studentsRouter);
+  app.use('/api/rooms', roomsRouter);
+  app.use('/api/exams', examsRouter);
+  app.use('/api/allocations', allocationsRouter);
+  app.use('/api/teachers', teachersRouter);
+  app.use('/api/duty', dutyRouter);
+  app.use('/api/sync', syncRouter);
+}
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);

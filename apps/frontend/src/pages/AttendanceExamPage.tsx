@@ -67,7 +67,7 @@ export default function AttendanceExamPage() {
 
   if (!exam) {
     return (
-      <div className="p-6 text-sm text-slate-500">
+      <div className="p-4 sm:p-6 text-sm text-slate-500">
         Exam not found. <Link to="/attendance" className="text-brand-700 hover:underline">Back to attendance</Link>
       </div>
     );
@@ -154,7 +154,7 @@ export default function AttendanceExamPage() {
           </>
         }
       />
-      <div className="p-6 space-y-4">
+      <div className="p-4 sm:p-6 space-y-4">
         {!exam.activeAllocationId && (
           <div className="card p-3 text-sm text-amber-800 bg-amber-50 border-amber-200">
             This sitting has no seating plan yet, so students are not grouped by room.{' '}

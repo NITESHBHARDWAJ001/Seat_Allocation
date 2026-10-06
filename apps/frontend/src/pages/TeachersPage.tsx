@@ -139,7 +139,7 @@ export default function TeachersPage() {
         }
       />
 
-      <div className="p-6 space-y-4">
+      <div className="p-4 sm:p-6 space-y-4">
         <ExcelImportControls kind="teachers" onImport={handleExcelImport} />
 
         {showBulk && (

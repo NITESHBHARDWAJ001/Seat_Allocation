@@ -4,7 +4,7 @@ A complete exam-day planning tool for a college: it turns a student list, a room
 
 The seating engine is a **deterministic constraint solver – no AI, no randomness you cannot reproduce**. The same inputs and the same seed always give the same plan, every hard rule is checked again by an independent validator, and anything the solver cannot satisfy is reported honestly instead of being hidden.
 
-> Status: seating, rules, validation, Excel import/export, printable sheets, duty rosters, duty windows and the **attendance / answer-book memo module** are built. Remaining work is listed in the [Roadmap](#roadmap-planned-features).
+> Status: seating, rules, validation, Excel import/export, printable sheets, duty rosters, duty windows, the attendance / answer-book memo module, organizations with logins and roles, and background sync are built. Next: first deployment on Render + Supabase. See [Scope, roadmap and future enhancements](#scope-roadmap-and-future-enhancements).
 
 ---
 
@@ -30,7 +30,7 @@ The seating engine is a **deterministic constraint solver – no AI, no randomne
 18. [Sample and real-data fixtures](#sample-and-real-data-fixtures)
 19. [Design decisions](#design-decisions)
 20. [Known limitations](#known-limitations)
-21. [Roadmap (planned features)](#roadmap-planned-features)
+21. [Scope, roadmap and future enhancements](#scope-roadmap-and-future-enhancements)
 
 ---
 
@@ -101,6 +101,34 @@ Typical workflow for an exam session or a whole sessional:
 - **Settings → Institution** – university, college, centre no. and superintendent printed on memos and sheets.
 - Attendance is stored per exam, keyed by roll number, so marks survive a regenerated seating plan; it is part of the Sync entity list.
 
+### Works on phones and tablets
+The layout is responsive: on a phone the sidebar becomes a slide-in menu behind a top bar, page headers and button rows wrap, pages use tighter padding, buttons and fields are touch-sized (16 px text in inputs so iOS does not zoom), and every table scrolls sideways inside its own box instead of stretching the page. Checked at 375 px wide on every main page (Dashboard, Students, Rooms, Teachers, Exams, Exam detail with the seating map, Duty Chart, Duty Windows, Attendance marking, sheets, memos and reports, Settings) with no sideways page scroll. Printing and the memo layout are unaffected.
+
+### Organizations, users and sync (optional server mode)
+The app runs fully on its own in one browser. Connected to the backend (`DATA_BACKEND=postgres`, Supabase Postgres) it becomes a multi-organization system:
+- **Who is who** (one sign-in screen for everybody; the account's role decides where it lands):
+
+  | Account | Belongs to | Sees | Lands on |
+  |---|---|---|---|
+  | **Platform admin** (the owner of the installation; created once from `SUPER_ADMIN_LOGIN` / `SUPER_ADMIN_PASSWORD`) | no organization | registered organizations and usage counts only - never an organization's students, exams, seating or attendance | `/platform` |
+  | **Organization admin** (the person who registered the organization, or the admin the platform admin created for it) | one organization | everything in that organization, plus its users | the app, with a *Users* menu |
+  | **Exam cell / Attendance marker / Viewer** (created by the org admin) | one organization | what the role allows | the app, limited menu |
+
+  The platform admin and an organization admin are **different accounts**: the platform admin deliberately cannot open any organization's data, so a person who runs a college as well as the platform needs two logins.
+- **Registering an organization is open and instant (no approval step).** Anyone can register from the public page (the landing page's *Register your organization* button; the short code is suggested from the name, and the new admin is signed straight into the app): they enter the organization's name, a short code and their own name, login (email or username) and password; the organization is active immediately and they become its first admin, signed in at once. The endpoint is rate limited (10 per hour per connection by default) and can be closed with `PUBLIC_REGISTRATION=off`, after which only the platform admin can create organizations. The platform admin still sees every registration in the dashboard and can suspend an organization at any time.
+- **The server address comes from the environment, never from the user.** The frontend reads `VITE_API_BASE_URL` (`apps/frontend/.env` locally, an environment variable on the frontend host). There is no server-address field anywhere in the app. With `npm run dev` and no value set it falls back to `http://localhost:4000`; a production build with no value shows a clear "server address is not configured" message on the sign-in screen.
+- **Platform admin dashboard** (`/platform` after signing in as the platform admin): create organizations for someone else (with a temporary first-admin password), see self-registered ones, suspend / reactivate, reset an org admin's password, activity log. It shows registered details and usage counts (users, students, exams, last sync) only - never an organization's students, seating or attendance.
+- **Organization admin** (`Users` page): creates users, changes roles, disables users, resets passwords, edits organization details. Cannot touch another organization, disable themselves or remove the last admin.
+- **Roles:** *Organization admin* (everything), *Exam cell* (everything except users), *Attendance marker* (attendance only), *Viewer* (read-only: dashboard, exams, duty chart, attendance reports). Enforced by the server, by the local repositories (a refused save shows "Your role cannot change ...") and by the menu.
+- **Login:** email or username + password (scrypt-hashed), short-lived access token + rotating refresh token, temporary passwords must be changed at first sign-in, disabled users and suspended organizations are cut off on their next request.
+- **Speed is unchanged:** the app still reads and writes its local IndexedDB copy (one database per organization per browser). A background sync moves only what changed, in small pieces:
+  - every save leaves a small note in a local *outbox*; a sync sends those records in batches of at most 200 records or ~1 MB (a big seating allocation travels alone), each batch stored with a single database statement;
+  - pulling asks for "changes after cursor N", 300 per page; the cursor only advances after a page is applied, so an interrupted sync simply resumes;
+  - a browser does not receive its own uploads back; other people's changes are merged in (latest write wins per record; attendance is merged per roll number, so two people marking different rooms never collide; deletes travel as tombstones);
+  - runs shortly after opening, every N minutes (default 15, set per browser in Settings, or manual only), when the tab regains focus and when the connection returns; failures retry after 1, 2, 5, then 10 minutes;
+  - Settings shows status, waiting changes, last sync and lets you press *Sync now*; existing local-only data can be copied into an organization once.
+- **Local-only mode** (no server) is exactly the original behaviour: no login, everything stays in the browser.
+
 ### Platform
 - Frontend and backend are **independently deployable**.
 - Settings page with manual **push / pull sync** to Google Sheets through the backend.
@@ -119,7 +147,8 @@ Typical workflow for an exam session or a whole sessional:
 | Off-main-thread solving | Web Worker (`allocation.worker.ts`) |
 | Excel | `read-excel-file` (import), `write-excel-file` (export and templates) |
 | Backend | Node 22, Express 4, `cors`, `dotenv`, run with `tsx` |
-| Backend storage | JSON files on disk **or** Google Sheets (`googleapis`, service account) |
+| Backend storage | **Postgres (Supabase)** for organizations, users and synced records (`pg`), or JSON files, or one Google Sheet (`googleapis`) for the original single-organization mode |
+| Auth | scrypt password hashing (Node `crypto`), JWT access tokens + rotating refresh tokens (`jsonwebtoken`), login rate limit (`express-rate-limit`) |
 | Engine | Pure TypeScript package `@exam-allocator/allocation-engine`, no runtime dependencies |
 | Domain / contracts | Pure TypeScript package `@exam-allocator/core` (models, repository interfaces, utils) |
 | Tests | Vitest (engine unit + scenario + stress tests) |
@@ -304,32 +333,43 @@ Excel headers (order does not matter, aliases accepted): Students `Roll Number*,
 
 ---
 
-## Storage and Google Sheets sync
+## Storage, organizations and sync
 
-- **Default:** everything lives in the browser's IndexedDB. Nothing leaves the machine.
-- **Backend storage:** `DATA_BACKEND=json` (files on disk) or `DATA_BACKEND=sheets` (a Google Sheet, one tab per entity, via a service account).
-- **Settings → Sync:** toggle, backend URL, *Test connection*, **Push local → spreadsheet**, **Pull spreadsheet → local**.
-  - Manual by design (avoids Sheets API quota problems on bulk edits and silent failures).
-  - Upsert by id in both directions; **deletions do not propagate** (documented limitation).
-  - This is how a second browser gets the same data: push from one, pull in the other.
-- Duty Windows and mix-group choices are stored in the settings store and are not yet part of the sync entity list.
+- **Local-first, always.** The app reads and writes IndexedDB in the browser; screens never wait for the network.
+- **Modes**
+  - *Local only* (default, no server): no login, data stays in this browser. Optional manual spreadsheet push / pull (`DATA_BACKEND=json|sheets`) remains as before.
+  - *Server mode* (`DATA_BACKEND=postgres`): organizations, users, roles and automatic background sync, described below.
+- **Server data model** (schema `exam_alloc`, created automatically): `organizations`, `users`, `refresh_tokens`, `audit_log`, and `records` - one row per synced record `(org_id, entity, id)` holding the record as `jsonb`, a `deleted` flag and a global, ever-increasing change number `seq` used as the pull cursor. Synced entities: students, rooms, teachers, exams, allocations, dutyRosters, settings (duty windows, mix groups, institution profile), attendance (per-exam flags) and attendanceMark (one row per exam + roll number).
+- **Tenant isolation:** the organization always comes from the signed-in user's token, never from the request. Every query filters by it.
+- **Sync algorithm** (`apps/frontend/src/services/syncEngine.ts`, pure helpers in `packages/allocation-engine/src/sync/`):
+  1. *Track:* repository wrappers write `(entity, id, put|delete)` into a local outbox on every save.
+  2. *Push:* read the latest state of each changed record, cut into batches (<= 200 records, ~1 MB), `POST /api/sync/push`; outbox rows are removed only if the record was not edited again meanwhile. Pushes are serialized per organization and each batch is one SQL statement.
+  3. *Pull:* `GET /api/sync/pull?since=<cursor>&limit=300` until `hasMore` is false; each page is applied locally, then the cursor is saved.
+  4. *Conflicts:* latest write wins per record; a record with a pending local edit is not overwritten by a pull; attendance marks merge per roll number using `markedAt`; deletes are tombstones.
+  5. *Schedule:* after opening, every N minutes (default 15, per browser), on focus / reconnect, or *Sync now*; failures back off 1, 2, 5, 10 minutes.
+- **Local-only mode is untouched** and remains the default when no server is configured.
 
 ---
 
 ## Backend API
 
-Base path `/api`. Friendly CRUD routes mint new ids; the sync routes accept caller-supplied ids.
+Base path `/api`.
 
-| Route | Purpose |
-|---|---|
-| `/api/students`, `/api/rooms`, `/api/teachers`, `/api/exams` | CRUD |
-| `/api/allocations` | list / get / generate (runs the same engine server side) |
-| `/api/duty` | `POST /generate`, `GET /:id` |
-| `/api/sync/:entity` | `GET` all items of `students | rooms | exams | allocations | teachers | dutyRosters` |
-| `/api/sync/:entity/bulk` | `POST { items }` upsert by id |
-| `/api/health` | health check |
+**Single-organization mode** (`json` / `sheets`): the original per-entity API - `/api/students`, `/rooms`, `/teachers`, `/exams`, `/allocations`, `/duty` and the manual mirror `/api/sync/:entity` (+ `/bulk`).
 
-The backend `duty` route still sizes by seat capacity, unlike the frontend which now uses students seated (see limitations).
+**Server mode** (`DATA_BACKEND=postgres`):
+
+| Route | Who | Purpose |
+|---|---|---|
+| `GET /api/public/config`, `POST /api/public/register` | anyone | is registration open; register an organization (active at once, first admin signed in with the password they chose; rate limited) |
+| `POST /api/auth/login`, `/refresh`, `/logout` | anyone | sign in (rate limited), rotate refresh token, sign out |
+| `GET /api/auth/me`, `POST /api/auth/change-password` | signed in | profile, change password (also ends other sessions) |
+| `GET/POST /api/platform/orgs`, `GET/PATCH /api/platform/orgs/:id` | platform admin | list / register / view / edit / suspend organizations (metadata + counts only) |
+| `POST /api/platform/orgs/:id/reset-admin-password`, `GET /api/platform/audit` | platform admin | recovery, activity log |
+| `GET/PATCH /api/org` | org members / org admin | organization details |
+| `GET/POST /api/org/users`, `PATCH /api/org/users/:id`, `POST /api/org/users/:id/reset-password` | org admin | manage users |
+| `POST /api/sync/push`, `GET /api/sync/pull`, `GET /api/sync/status` | org members (push: not viewers; role-limited per entity) | chunked sync |
+| `GET /api/health` | anyone | health check |
 
 ---
 
@@ -374,27 +414,41 @@ Backend (`apps/backend/.env`, see `.env.example`):
 |---|---|
 | `PORT` | API port (default 4000) |
 | `CORS_ORIGIN` | comma-separated allowed origins; unset allows any (dev only) |
-| `DATA_BACKEND` | `json` (default) or `sheets` |
+| `DATA_BACKEND` | `json` (default), `sheets`, or `postgres` (organizations, logins, sync) |
 | `DATA_DIR` | folder for JSON files (needs a persistent disk on real hosts) |
 | `GOOGLE_SHEETS_ID` | spreadsheet id (between `/d/` and `/edit`) |
 | `GOOGLE_SERVICE_ACCOUNT_EMAIL` | service account; share the sheet with it as Editor |
 | `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` | its private key, quoted, with `\n` sequences. **Never commit; rotate if exposed.** |
 
-Frontend: no required configuration (it is local-first). The sync backend URL is entered in the Settings page.
+Server mode (`DATA_BACKEND=postgres`) additionally needs:
+
+| Variable | Meaning |
+|---|---|
+| `DATABASE_URL` | Postgres connection string. For Supabase use the **Session pooler** string (IPv4, port 5432): `postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres`. The database password exists only here. |
+| `JWT_SECRET` | 32+ random characters used to sign login tokens |
+| `SUPER_ADMIN_LOGIN`, `SUPER_ADMIN_PASSWORD` | first-run platform admin (only if none exists; must change password at first sign-in) |
+| `DB_SCHEMA` | schema for all tables (default `exam_alloc`) |
+| `PG_POOL_MAX` | max database connections (default 5; the Supabase session pooler allows few clients in total) |
+| `ACCESS_TOKEN_MINUTES`, `REFRESH_TOKEN_DAYS` | token lifetimes (default 30 min / 30 days) |
+| `PGSSL` | set `disable` only for a local Postgres without TLS |
+| `PUBLIC_REGISTRATION` | `on` (default) lets anyone register an organization; `off` closes it |
+| `REGISTER_RATE_LIMIT` | registrations allowed per hour per connection (default 10) |
+
+Frontend (`apps/frontend/.env`, see `.env.example`): `VITE_API_BASE_URL` = the backend address (for example `http://localhost:4000` locally, your Render URL when deployed; set it as an environment variable on the frontend host). When it is set the app starts in server mode (public landing page, sign-in, registration) and never asks for the address. Leave it unset to start in local-only mode (no login, data stays in the browser); "Try as a guest" on the landing page also opens that mode. Only `VITE_` variables reach the browser, so never put a secret there - the database password lives only in the backend environment.
 
 ---
 
 ## Deployment
 
 - **Frontend → Vercel** (or any static host): root `apps/frontend`, build `npm run build`, output `dist`. `vercel.json` already rewrites all routes to `index.html` for the SPA.
-- **Backend → Render / Railway / Fly / a VPS:** root `apps/backend`, start `npm start`. Set the env vars above. Free serverless tiers have ephemeral disks, so use `DATA_BACKEND=sheets`, a mounted volume, or a real database.
+- **Backend → Render:** `render.yaml` at the repository root is a ready Blueprint (root `apps/backend`, `npm install` / `npm start`, health check `/api/health`). Set `DATABASE_URL` (Supabase Session pooler), `JWT_SECRET`, `SUPER_ADMIN_LOGIN`, `SUPER_ADMIN_PASSWORD` and `CORS_ORIGIN` in the dashboard; `DATA_BACKEND=postgres` is preset. Other hosts work the same way. Do not use the json backend on hosts with ephemeral disks.
 - Because the shared packages are vendored, each app builds from its own folder without the rest of the monorepo.
 
 ---
 
 ## Testing
 
-`npm run test` runs **102 tests** in `packages/allocation-engine`:
+`npm run test` runs **114 tests** in `packages/allocation-engine`:
 
 - adjacency, seat graph, capacity and blocked seats
 - distribution and per-room branch requirements
@@ -405,12 +459,37 @@ Frontend: no required configuration (it is local-first). The sync backend URL is
 - subject resolution and row / column / seat subject labels
 - duty allocation and duty windows (fair spread across seeds, overlaps, per-day cap, limits, shortfalls, locked rosters)
 - attendance: roll-range compression (breaks at absent / missing rolls, letter suffixes) and memo totals (P + A, umc, strays, unseated)
+- sync logic: request batching (heavy records travel alone), per-roll attendance diff / merge, retry back-off, role rules
 - `realCollegeMix` – 706 students, 6 branches × 2 years, 14 rooms, strict continuity, minimum rooms
 - stress – about 1000 students / 20 rooms, time budget and reproducibility
+
+`npm run test:multitenant --workspace=apps/backend` (needs `DATABASE_URL`) starts the real server against a throw-away schema and runs 76 checks: login and password rules, roles, isolation between two organizations, chunked push / pull ordering and paging, tombstones, per-device echo skipping, refresh tokens, suspension, audit log, and open registration (instant activation, duplicate code / login refused, weak password refused, data isolation for the new organization).
+
+The whole flow was also exercised in a real browser against the real backend and database: platform admin creates an organization, the org admin creates users, data is imported and synced in batches, a "second device" (wiped local database) signs in as another role and receives everything, the marker's attendance marks flow back, viewers are refused writes, and the platform dashboard shows counts only.
 
 Beyond unit tests, the app was exercised end to end in a real browser: import the real Excel files, generate all 9 seatings (all seated, all hard checks green), create a duty window and confirm the Duty Chart updates.
 
 ---
+
+### Capacity (measured load test)
+
+`DATABASE_URL=... npm run load-test --workspace=apps/backend` starts the real backend on a throw-away schema, registers several organizations with realistic data (700 students, 14 rooms, 9 exams, 9 seating plans each) and measures throughput and latency at rising concurrency. It never touches real data and drops its schema at the end.
+
+Measured from a laptop, so **every database query paid a ~110 ms round trip** to Supabase (Singapore), with a connection pool of 5, then 10:
+
+| Operation | Pool 5 | Pool 10 | Errors |
+|---|---|---|---|
+| Server itself (health, no database) | ~4,000 req/s | - | 0 |
+| Authenticated request (1 query) | ~46 req/s | ~87 req/s | 0 |
+| Quiet sync (nothing new; what every user does every N minutes) | ~22 /s | ~41 /s | 0 |
+| First-time download page (300 records, ~350 KB) | ~12 /s | ~18 /s | 0 |
+| Push of 10 attendance marks | ~7.5 /s | ~13 /s | 0 |
+| Push of 200 records | ~7 /s | - | 0 |
+| Sign-in (password hashing) | ~16 /s | - | 0 |
+
+Up to 40 simultaneous users there were **no errors**; beyond the limit requests simply queue (latency grows in proportion, nothing fails). Throughput scales with the pool size and is bounded by *round trip x queries per request x pool size*, not by the server's CPU, which is why a backend hosted in the same region as the database (for example Render Singapore next to Supabase Singapore) should handle far more; that projection is an estimate, not a measurement.
+
+What this means in practice: a signed-in user costs about one quiet sync every 15 minutes. At the measured ~22 syncs per second that is on the order of 20,000 users spread evenly, and an exam-morning burst of a few hundred users pressing *Sync now* within a minute is comfortably inside the limit. The heavy work (the seating solver, printing, Excel) runs in the browser and costs the server nothing. Storage is about 1-3 MB per college for a full sessional. Plan-level limits (Supabase free tier storage and connections, Render free tier cold starts) matter before these numbers do.
 
 ## Sample and real-data fixtures
 
@@ -437,6 +516,9 @@ Date-sheet mapping used for the real data: Sem III → Year 2, Sem VII → Year 
 - **Additive, upsert-only sync** – never deletes remotely or locally.
 - **Versioned results** – regenerating keeps history.
 - **Locked hand edits** – manual duty changes survive re-planning.
+- **Local-first with background sync** – screens never wait for the network; the server is the shared copy and the backup.
+- **Open registration, no approval queue** – fewer moving parts for colleges; abuse is limited by rate limiting, the off switch and suspension.
+- **The platform admin cannot read organization data** – separation between running the service and the colleges' data.
 
 ---
 
@@ -444,40 +526,111 @@ Date-sheet mapping used for the real data: Sem III → Year 2, Sem VII → Year 
 
 - Two simultaneous strict adjacency rules on different attributes are not guaranteed (validator flags it).
 - Under strict adjacency a room is used at roughly half density per branch; small irregular rooms may stay about half full.
-- Sync does not propagate deletions; Duty Windows and mix-group settings are outside the sync entity list.
+- Server mode: conflicts are "latest write wins" per record (attendance per roll); there is no merge UI. A viewer sees the same screens as other roles, but saves are refused with a message rather than the buttons being hidden.
+- Server mode: the Supabase Session pooler limits total connections, so run a single backend instance (or raise the limit with a paid pooler).
 - The backend `duty` route still sizes by seat capacity.
 - Excel import of per-teacher duty quotas is not implemented (quotas are edited in the Duty Windows page).
 - The Help page does not yet describe Excel import or Duty Windows.
-- Google Sheets is fine for college-scale data but slow for very large allocation payloads.
+- The Google Sheets backend is the original single-organization mode; server mode uses Postgres. Sheets export of server data is not built.
+- No email flow: temporary passwords are shown once to whoever creates or resets an account, and registration has no email verification or CAPTCHA (rate limit and suspension are the safeguards).
 - PDF is via browser print-to-PDF; there is no one-click PDF download.
 
 ---
 
-## Roadmap (planned features)
+## Scope, roadmap and future enhancements
 
-These are **not implemented yet**; they are the agreed next steps.
+Status words used below: **Built** (works, tested), **Backend built** (server side done, screen still to do), **Next** (agreed, first in line), **Planned** (discussed and wanted), **Idea** (worth considering, not committed).
 
-### 1–3. Attendance sheets, absentee entry, branch-wise reporting and memos – **built**
-See [Attendance, absentees and answer-book memos](#attendance-absentees-and-answer-book-memos). Still to do on this module:
-- Excel / paste **import of absentee lists** (currently typed, pasted or tapped).
-- A **branch-wise final challan** across a whole sessional (today the memo is per sitting, per paper).
-- Room-wise absentee page as its own printable report.
-- A fixed, configurable list of unfair-means reasons.
+### Where the project stands
 
-### 4. Fuller Google Sheets integration
-Move from manual push / pull to a **properly integrated spreadsheet workflow**:
-- attendance already syncs as its own tab; challans and the institution profile still to be added;
-- Duty Windows, duty rosters and mix-group settings added to the sync entity list;
-- optional automatic, batched sync with quota-safe rate limiting and clear failure reporting;
-- deletion handling (tombstones) so deletes propagate safely.
+| Area | Status |
+|---|---|
+| Students, rooms (grid + layout editor), teachers, date sheet, Excel / paste import | Built |
+| Seat allocation: strict / preferred rules, mixing, roll continuity, minimum rooms, room priority, validator | Built |
+| Subject labels per row / column / seat, printable room sheets, Excel per room | Built |
+| Duty: per-exam roster, Duty Windows (fair spread over a date range), Duty Chart | Built |
+| Attendance marking, absentees, unfair means, strays, attendance sheets, branch-wise reports, answer-book memos | Built |
+| Organizations, logins, roles, platform dashboard, org-admin user management | Built |
+| Chunked background sync between the browser copy and the server (Postgres) | Built |
+| Public landing page (Sign in / Register your organization / Try as a guest) and open registration (no approval) | Built |
+| Server address from the environment (`VITE_API_BASE_URL`) | Built |
+| Deployment files (Render Blueprint, Vercel SPA rewrite) | Built, not yet run on Render |
 
-### 5. Smaller planned improvements
-- Excel import for per-teacher duty quotas.
-- Backend duty route aligned with students-seated sizing.
-- One-click PDF download of room sheets and the attendance sheets.
-- Help page updated for Excel import and Duty Windows.
-- Dual-attribute strict adjacency (for example branch **and** year) in the lane planner.
-- Choosing which room to start seating from, as an explicit option.
+### Next (agreed, in this order)
+1. **First deployment and hardening on Render + Supabase:** run the Blueprint, set the secrets, rotate the database password, check the connection limit of the Session pooler, add a cold-start note for free tiers.
+2. **Absentee import and printable room-wise absent report** (see Attendance below).
+3. **Help page refresh:** Excel import, Duty Windows, attendance, memos, organizations and sync.
+
+Already done from the earlier "next" list: the **public landing page** (visitors who are not signed in see a short description with *Sign in*, *Register your organization* - instant, no approval - and *Try as a guest*, which is today's local-only mode with data that can later be copied into an organization from Settings; the registration button disappears when `PUBLIC_REGISTRATION=off`).
+
+### Future enhancements by area
+
+**Attendance, memos and reporting**
+- *Planned* - Import absentee lists from Excel or pasted columns (today: tap, type or paste roll numbers).
+- *Planned* - **Branch-wise final challan** across a whole sessional (today the memo is per sitting, per paper): per branch, per subject, per session - on roll, present, absent, unfair-means list - built from the attendance data.
+- *Planned* - A printable **room-wise absent list** page.
+- *Planned* - Editable list of unfair-means reasons (today a fixed list plus "Other").
+- *Planned* - Session names taken from the date sheet ("Session-I / II / III") instead of Morning / Evening by start time.
+- *Idea* - Answer-book packet / bundle summary, per-invigilator attendance sign-off, QR or barcode on attendance sheets.
+
+**Seating**
+- *Planned* - Choose **which room to start seating from** as an explicit option (today: room priority).
+- *Planned* - Strict adjacency on **two attributes at once** (for example branch and year) in the lane planner; today the validator flags such a plan instead of guaranteeing it.
+- *Idea* - Use the free half of a room more densely when rules allow, reserved seats for special cases, compare two seeds side by side.
+
+**Duty (invigilation)**
+- *Planned* - Excel import of per-teacher duty quotas (today edited on the Duty Windows page).
+- *Planned* - Make the backend `duty` route (single-organization mode) use students seated, like the app does.
+- *Idea* - Teacher availability calendar, swap requests between teachers, notification of duties by SMS / email.
+
+**Accounts, organizations and security**
+- *Planned* - **Email invitations, email verification and self-service password reset** (today temporary passwords are shown once on screen).
+- *Planned* - Registration safeguards beyond the rate limit: CAPTCHA, email verification, an allow-list of domains if wanted.
+- *Planned* - **Branch-scoped roles** (for example an HOD who sees only their branch) and a per-room scope for attendance markers.
+- *Planned* - Organization-visible activity log (today only the platform admin sees it).
+- *Idea* - Two-factor sign-in for admins, list and revoke signed-in devices, organization data export and deletion on request, scheduled database backups with a restore test.
+- *Decided against* - Plan limits per organization (unlimited for now) and an approval queue for new organizations.
+
+**Sync and data**
+- *Planned* - A visible **"changed by someone else"** note when an incoming change replaces something you edited.
+- *Planned* - Duty rosters, duty windows and mix groups are already synced; add an explicit "reset this browser's copy from the server" action in Settings.
+- *Idea* - Live updates (short polling or Supabase Realtime) so an attendance marker's entries appear on the admin's screen without waiting for the next sync; compress large allocations; per-role pull scopes so a marker only downloads the sittings they need.
+
+**Spreadsheet integration**
+- *Planned* - One-way, batched **export to Google Sheets** (attendance, memos, challans) for sharing; Postgres stays the source of truth and Sheets is a report mirror, never a database.
+
+**Mobile and offline**
+- *Planned* - **Android app with Capacitor** wrapping the existing web build. Needs: a print / PDF plugin instead of `window.open`, Filesystem + Share for Excel downloads, an HTTPS backend, and care that Android may clear WebView storage (the server copy is the backup). Best fit: marking attendance on a phone in the exam hall.
+- *Planned* - Installable **PWA** as the cheaper alternative (no store, no wrapper) with an offline shell.
+- *Idea* - Keep the signed-in session usable offline for longer with a clear "last synced" warning.
+
+**Printing and export**
+- *Planned* - One-click **PDF download** of room sheets, attendance sheets and memos (today: browser print-to-PDF and Excel).
+- *Idea* - Institution letterhead per organization, multiple memo templates for different universities, a memo layout editor.
+
+**Quality and operations**
+- *Planned* - Continuous integration (typecheck + the 114 engine tests + the backend end-to-end suite on every push), error reporting, a health / metrics dashboard.
+- *Planned* - Browser end-to-end tests kept in the repository (today the browser flows were verified by hand-driven scripts).
+- *Idea* - Load test with many organizations syncing at once; a written data-protection note for student data.
+
+### Scope
+
+**In scope**
+- Deterministic seating for college exams with clear rules, honest validation and reproducible results.
+- Invigilation duty planning that is fair over a date range.
+- Exam-day attendance, absentees, unfair-means cases and the university's answer-book memo.
+- Several colleges on one installation, each with its own users and roles, and a platform owner who can register and suspend organizations but cannot read their data.
+- Local-first speed with background sync, usable offline.
+- Web first; Android via Capacitor later.
+
+**Out of scope (not planned)**
+- AI or machine-learning seat assignment - the engine stays deterministic and explainable.
+- Result processing, marks entry, fee collection or fee challans, admissions, timetables for regular classes.
+- A student or parent portal, biometric or face-based attendance.
+- Paying for or metering usage (no plans or limits).
+
+### Known boundaries today
+See [Known limitations](#known-limitations). The main ones: two simultaneous strict adjacency rules on different attributes are not guaranteed; sync conflicts are latest-write-wins per record (attendance per roll number) with no merge screen; registration has no email verification; only one backend instance should run against the Supabase Session pooler; the Render deployment has not been exercised yet.
 
 ---
 

@@ -9,6 +9,14 @@ export interface ImportRecord {
   source: string;
 }
 
+export interface OutboxRecord {
+  key: string; // `${entity}:${id}`
+  entity: string;
+  id: string;
+  op: 'put' | 'delete';
+  at: string;
+}
+
 interface SettingsRecord {
   key: string;
   value: unknown;
@@ -57,10 +65,37 @@ export interface ExamAllocatorDB extends DBSchema {
     value: ExamAttendance;
     indexes: { examId: string };
   };
+  /** Local changes not yet sent to the server (one entry per record, latest state is read at sync time). */
+  outbox: {
+    key: string;
+    value: OutboxRecord;
+  };
+  /** Sync bookkeeping: pull cursor, last sync time, per-exam attendance snapshots. */
+  syncMeta: {
+    key: string;
+    value: { key: string; value: unknown };
+  };
 }
 
-const DB_NAME = 'exam-allocator-db';
-const DB_VERSION = 3;
+const BASE_DB_NAME = 'exam-allocator-db';
+const DB_VERSION = 4;
+let dbName = BASE_DB_NAME;
+
+/**
+ * Each signed-in organization gets its own local database (exam-allocator-db__<org>), so two colleges using the
+ * same browser never see each other's data. null = the original single database used when the app runs
+ * without a server. Call before the first repository use (the app does this at startup).
+ */
+export function setDbNamespace(namespace: string | null): void {
+  const next = namespace ? `${BASE_DB_NAME}__${namespace}` : BASE_DB_NAME;
+  if (next === dbName) return;
+  dbName = next;
+  if (dbPromise) dbPromise.then((db) => db.close()).catch(() => undefined);
+  dbPromise = null;
+}
+
+export const currentDbName = (): string => dbName;
+export const LOCAL_ONLY_DB_NAME = BASE_DB_NAME;
 
 let dbPromise: Promise<IDBPDatabase<ExamAllocatorDB>> | null = null;
 
@@ -72,7 +107,7 @@ let dbPromise: Promise<IDBPDatabase<ExamAllocatorDB>> | null = null;
  */
 export function getDb(): Promise<IDBPDatabase<ExamAllocatorDB>> {
   if (!dbPromise) {
-    dbPromise = openDB<ExamAllocatorDB>(DB_NAME, DB_VERSION, {
+    dbPromise = openDB<ExamAllocatorDB>(dbName, DB_VERSION, {
       upgrade(db) {
         if (!db.objectStoreNames.contains('students')) {
           const store = db.createObjectStore('students', { keyPath: 'id' });
@@ -106,6 +141,12 @@ export function getDb(): Promise<IDBPDatabase<ExamAllocatorDB>> {
           const store = db.createObjectStore('dutyRosters', { keyPath: 'id' });
           store.createIndex('examId', 'examId');
         }
+        if (!db.objectStoreNames.contains('outbox')) {
+          db.createObjectStore('outbox', { keyPath: 'key' });
+        }
+        if (!db.objectStoreNames.contains('syncMeta')) {
+          db.createObjectStore('syncMeta', { keyPath: 'key' });
+        }
         if (!db.objectStoreNames.contains('attendance')) {
           const store = db.createObjectStore('attendance', { keyPath: 'id' });
           store.createIndex('examId', 'examId');
@@ -123,7 +164,7 @@ export function getDb(): Promise<IDBPDatabase<ExamAllocatorDB>> {
       },
     }).catch((err: unknown) => {
       dbPromise = null;
-      throw new Error(`Failed to open IndexedDB (${DB_NAME}): ${err instanceof Error ? err.message : String(err)}`);
+      throw new Error(`Failed to open IndexedDB (${dbName}): ${err instanceof Error ? err.message : String(err)}`);
     });
   }
   return dbPromise;
@@ -135,7 +176,7 @@ export async function resetDatabase(): Promise<void> {
   db.close();
   dbPromise = null;
   await new Promise<void>((resolve, reject) => {
-    const req = indexedDB.deleteDatabase(DB_NAME);
+    const req = indexedDB.deleteDatabase(dbName);
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);
     req.onblocked = () => resolve();

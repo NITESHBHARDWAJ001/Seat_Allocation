@@ -38,7 +38,7 @@ export default function AttendanceSheetsPage() {
     return out;
   }, [dutyRosters, teachers, exam, allocation]);
 
-  if (!exam) return <div className="p-6 text-sm text-slate-500">Exam not found.</div>;
+  if (!exam) return <div className="p-4 sm:p-6 text-sm text-slate-500">Exam not found.</div>;
   const params = { institution, exam, sheets, invigilatorsByRoom, showMarks };
 
   return (
@@ -60,7 +60,7 @@ export default function AttendanceSheetsPage() {
           </>
         }
       />
-      <div className="p-6 space-y-4">
+      <div className="p-4 sm:p-6 space-y-4">
         {!exam.activeAllocationId && <div className="card p-4 text-sm text-amber-800 bg-amber-50 border-amber-200">Generate the seating allocation first; sheets are built from it.</div>}
         {(!institution.college || !institution.centreNo) && (
           <div className="card p-3 text-xs text-slate-600">

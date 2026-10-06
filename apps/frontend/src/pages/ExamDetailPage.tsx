@@ -94,7 +94,7 @@ export default function ExamDetailPage() {
 
   if (!exam) {
     return (
-      <div className="p-6 text-sm text-slate-500">
+      <div className="p-4 sm:p-6 text-sm text-slate-500">
         Exam not found. <Link to="/exams" className="text-brand-700 hover:underline">Back to exams</Link>
       </div>
     );
@@ -226,7 +226,7 @@ export default function ExamDetailPage() {
         }
       />
 
-      <div className="p-6 space-y-5">
+      <div className="p-4 sm:p-6 space-y-5">
         {error && (
           <div className="rounded-md border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-800 flex justify-between">
             <span>{error}</span>
@@ -373,7 +373,7 @@ export default function ExamDetailPage() {
                       ))}
                     </ul>
                   )}
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       className="btn-primary"
                       disabled={!pendingOverride.preview.seatLegal}

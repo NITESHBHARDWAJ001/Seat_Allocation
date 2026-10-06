@@ -193,7 +193,7 @@ export default function StudentsPage() {
         }
       />
 
-      <div className="p-6 space-y-4">
+      <div className="p-4 sm:p-6 space-y-4">
         {(duplicateRolls.size > 0 || missingFieldsCount > 0) && (
           <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             {duplicateRolls.size > 0 && <div>Duplicate roll numbers: {[...duplicateRolls].join(', ')}</div>}

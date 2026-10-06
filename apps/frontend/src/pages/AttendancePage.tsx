@@ -20,7 +20,7 @@ export default function AttendancePage() {
           </Link>
         }
       />
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {sorted.length === 0 ? (
           <div className="card p-8 text-center text-sm text-slate-500">No exams yet. Import a datesheet on the Exams page first.</div>
         ) : (

@@ -13,6 +13,9 @@ import {
 } from '../services/repositories.js';
 import PageHeader from '../components/PageHeader.js';
 import InstitutionCard from '../features/settings/InstitutionCard.js';
+import AccountCard from '../features/settings/AccountCard.js';
+import SyncCard from '../features/settings/SyncCard.js';
+import { useAuth } from '../services/AuthContext.js';
 
 const repositoriesByEntity: Record<SyncEntityName, { getAll: () => Promise<any[]>; create: (item: any) => Promise<any> }> = {
   students: studentRepository,
@@ -26,7 +29,28 @@ const repositoriesByEntity: Record<SyncEntityName, { getAll: () => Promise<any[]
 
 type EntitySummary = { entity: SyncEntityName; message: string; ok: boolean };
 
+/** Signed in to an organization: account, background sync and the institution details it shares. */
+function CloudSettings() {
+  return (
+    <div>
+      <PageHeader title="Settings" subtitle="Your account, sync with the server, and organization details" />
+      <div className="p-4 sm:p-6 space-y-6 max-w-2xl">
+        <AccountCard />
+        <SyncCard />
+        <InstitutionCard />
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
+  const { cloud } = useAuth();
+  return cloud ? <CloudSettings /> : <LocalSettings />;
+}
+
+/** The original settings: no server login, optional manual spreadsheet push / pull. */
+function LocalSettings() {
+  const { useServer } = useAuth();
   const { refreshAll } = useAppData();
   const [settings, setSettings] = useState<SyncSettings | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
@@ -103,8 +127,15 @@ export default function SettingsPage() {
   return (
     <div>
       <PageHeader title="Settings" subtitle="Manually sync local data with a shared spreadsheet backend" />
-      <div className="p-6 space-y-6 max-w-2xl">
+      <div className="p-4 sm:p-6 space-y-6 max-w-2xl">
         <InstitutionCard />
+        <div className="card p-4 space-y-2">
+          <div className="font-semibold text-slate-900">Organization server</div>
+          <p className="text-xs text-slate-500">Sign in to your organization to share data with your team: everything still works from this browser, with automatic background sync.</p>
+          <button className="btn-primary" onClick={useServer}>
+            Sign in to an organization
+          </button>
+        </div>
         <div className="card p-4 space-y-4">
           <label className="flex items-center gap-2">
             <input

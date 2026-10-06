@@ -220,7 +220,7 @@ export default function DutyRosterPanel({
                   ))}
                 </ul>
               )}
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button className="btn-primary" disabled={pending.preview.hardViolations.length > 0} onClick={() => confirmMove(false)}>
                   Apply
                 </button>

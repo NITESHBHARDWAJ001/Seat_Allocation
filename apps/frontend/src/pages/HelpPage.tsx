@@ -28,7 +28,7 @@ export default function HelpPage() {
   return (
     <div>
       <PageHeader title="Help" subtitle="How the whole workflow fits together" />
-      <div className="p-6 space-y-6 max-w-4xl">
+      <div className="p-4 sm:p-6 space-y-6 max-w-4xl">
         <div className="card p-4">
           <h2 className="text-sm font-semibold text-slate-800 mb-3">Getting started, step by step</h2>
           <ol className="space-y-3">

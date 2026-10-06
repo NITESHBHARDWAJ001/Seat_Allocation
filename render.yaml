@@ -1,0 +1,25 @@
+# Render Blueprint for the backend API (multi-organization mode).
+# Secrets are NOT stored here: fill the "sync: false" values in the Render dashboard.
+services:
+  - type: web
+    name: exam-allocator-api
+    runtime: node
+    rootDir: apps/backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: DATA_BACKEND
+        value: postgres
+      - key: DATABASE_URL          # Supabase SESSION POOLER string (IPv4), incl. the database password
+        sync: false
+      - key: JWT_SECRET            # 32+ random characters
+        sync: false
+      - key: SUPER_ADMIN_LOGIN     # first-run only
+        sync: false
+      - key: SUPER_ADMIN_PASSWORD  # first-run only; changed at first sign-in
+        sync: false
+      - key: CORS_ORIGIN           # your deployed frontend URL(s), comma separated
+        sync: false

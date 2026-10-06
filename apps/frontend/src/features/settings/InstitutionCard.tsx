@@ -6,6 +6,7 @@ import { getInstitution, saveInstitution } from '../../services/attendanceServic
 export default function InstitutionCard() {
   const [profile, setProfile] = useState<InstitutionProfile>(DEFAULT_INSTITUTION);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     getInstitution().then(setProfile);
@@ -66,13 +67,19 @@ export default function InstitutionCard() {
         <button
           className="btn-primary"
           onClick={async () => {
-            await saveInstitution(profile);
-            setSaved(true);
+            try {
+              setError(null);
+              await saveInstitution(profile);
+              setSaved(true);
+            } catch (e) {
+              setError(e instanceof Error ? e.message : String(e));
+            }
           }}
         >
           Save
         </button>
         {saved && <span className="text-xs text-emerald-700">Saved</span>}
+        {error && <span className="text-xs text-red-700">{error}</span>}
       </div>
     </div>
   );

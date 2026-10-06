@@ -15,7 +15,7 @@ export default function DashboardPage() {
   return (
     <div>
       <PageHeader title="Dashboard" subtitle="Overview of students, rooms, and exams" />
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-6">
         {loading ? (
           <div className="text-sm text-slate-500">Loading local data...</div>
         ) : (

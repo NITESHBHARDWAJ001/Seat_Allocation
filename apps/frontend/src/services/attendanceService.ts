@@ -7,7 +7,7 @@ export async function getOrCreateAttendance(examId: string): Promise<ExamAttenda
   const existing = await attendanceRepository.getByExamId(examId);
   if (existing) return existing;
   const now = new Date().toISOString();
-  return attendanceRepository.create({ id: generateId('att'), examId, entries: {}, createdAt: now, updatedAt: now });
+  return attendanceRepository.create({ id: `att_${examId}`, examId, entries: {}, createdAt: now, updatedAt: now });
 }
 
 export interface MarkInput {

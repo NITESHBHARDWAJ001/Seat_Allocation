@@ -26,7 +26,7 @@ export default function RoomLayoutPage() {
 
   if (!room) {
     return (
-      <div className="p-6 text-sm text-slate-500">
+      <div className="p-4 sm:p-6 text-sm text-slate-500">
         Room not found. <Link to="/rooms" className="text-brand-700 hover:underline">Back to rooms</Link>
       </div>
     );
@@ -55,7 +55,7 @@ export default function RoomLayoutPage() {
           </button>
         }
       />
-      <div className="p-6 space-y-4">
+      <div className="p-4 sm:p-6 space-y-4">
         <div className="card p-4 flex flex-wrap items-end gap-4">
           <div>
             <div className="label">Room name</div>

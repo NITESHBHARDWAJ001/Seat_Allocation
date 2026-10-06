@@ -21,3 +21,4 @@ export * from './subjects/laneSubjects.js';
 export * from './duty/dutyWindowPlanner.js';
 export * from './attendance/rollRanges.js';
 export * from './attendance/memo.js';
+export * from './sync/syncLogic.js';

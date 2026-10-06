@@ -30,7 +30,7 @@ export default function AttendanceMemosPage() {
     [exam, students, allocation, attendance]
   );
 
-  if (!exam) return <div className="p-6 text-sm text-slate-500">Exam not found.</div>;
+  if (!exam) return <div className="p-4 sm:p-6 text-sm text-slate-500">Exam not found.</div>;
 
   return (
     <div>
@@ -51,7 +51,7 @@ export default function AttendanceMemosPage() {
           </>
         }
       />
-      <div className="p-6 space-y-3">
+      <div className="p-4 sm:p-6 space-y-3">
         {!attendance?.finalized && <div className="card p-3 text-xs text-amber-800 bg-amber-50 border-amber-200">Attendance is not finalized yet — memos reflect the marks entered so far.</div>}
         {memos.some((m) => m.unseated.length > 0) && (
           <div className="card p-3 text-xs text-amber-800 bg-amber-50 border-amber-200">
