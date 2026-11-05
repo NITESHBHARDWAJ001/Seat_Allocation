@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { getApiBase, getPublicConfig, registerOrganization, switchToLocalOnly } from '../services/auth.js';
-import LoginPage from './LoginPage.js';
+import LoginPage, { AuthShell } from './LoginPage.js';
+import SeatArt from '../components/SeatArt.js';
+import Logo from '../components/Logo.js';
+import Icon from '../components/Icon.js';
 
 type View = 'landing' | 'login' | 'register';
 
@@ -12,52 +15,70 @@ const slugify = (name: string): string =>
     .slice(0, 30);
 
 function Landing({ onSignIn, onRegister, canRegister }: { onSignIn: () => void; onRegister: () => void; canRegister: boolean }) {
-  const features = [
-    ['Seat plans that follow your rules', 'Branch and year mixing, strict roll-number continuity, fewest rooms, room priority - checked by an independent validator.'],
-    ['Fair invigilation duty', 'Duties spread evenly over a whole sessional, only for occupied rooms, with a live duty chart.'],
-    ['Attendance and answer-book memos', 'Mark absentees and unfair-means cases in one tap, print attendance sheets and the university memo.'],
-    ['Fast and works offline', 'Everything runs in your browser first and syncs quietly in the background with your team.'],
+  const features: Array<[string, string, string, string]> = [
+    ['01', 'Seat plans that follow your rules', 'Branch and year mixing, strict roll-number continuity, fewest rooms, room priority - checked by an independent validator.', 'bg-marker-200'],
+    ['02', 'Fair invigilation duty', 'Duties spread evenly over a whole sessional, only for occupied rooms, with a live duty chart.', 'bg-pen-100'],
+    ['03', 'Attendance and answer-book memos', 'Mark absentees and unfair-means cases in one tap, print attendance sheets and the university memo.', 'bg-brand-100'],
+    ['04', 'Fast, and works offline', 'Everything runs in your browser first and syncs quietly in the background with your team.', 'bg-emerald-100'],
   ];
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="px-6 py-4 flex items-center justify-between max-w-5xl mx-auto">
-        <div className="font-semibold text-slate-900">Exam Room Allocator</div>
+    <div className="min-h-screen">
+      <header className="px-5 sm:px-8 py-4 flex items-center justify-between max-w-6xl mx-auto">
+        <Logo />
         <button className="btn-secondary" onClick={onSignIn}>
           Sign in
         </button>
       </header>
-      <main className="max-w-5xl mx-auto px-6 pb-16">
-        <section className="py-12 sm:py-16 text-center">
-          <h1 className="text-3xl sm:text-4xl font-semibold text-slate-900 leading-tight">Exam rooms, seating, duties and attendance - sorted.</h1>
-          <p className="mt-4 text-slate-600 max-w-2xl mx-auto">
-            A complete exam-day tool for colleges. Upload your students, rooms and date sheet, and get seat-by-seat plans, fair invigilation rosters, attendance sheets and the answer-book forwarding memo.
-          </p>
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <button className="btn-primary px-5 py-2.5" onClick={onSignIn}>
-              Sign in
-            </button>
-            {canRegister && (
-              <button className="btn-secondary px-5 py-2.5" onClick={onRegister}>
-                Register your organization
+      <main className="max-w-6xl mx-auto px-5 sm:px-8 pb-16">
+        <section className="py-10 sm:py-16 grid lg:grid-cols-[1.1fr_1fr] gap-10 lg:gap-14 items-center">
+          <div>
+            <div className="eyebrow mb-4">For colleges &amp; exam cells</div>
+            <h1 className="text-[40px] sm:text-6xl font-semibold text-brand-900 leading-[1.02] tracking-tight">
+              Every student in the <span className="bg-[linear-gradient(transparent_60%,theme(colors.marker.300)_60%,theme(colors.marker.300)_92%,transparent_92%)]">right seat</span>. Every room watched.
+            </h1>
+            <p className="mt-5 text-slate-600 max-w-xl text-lg">Upload your students, rooms and date sheet. Get seat-by-seat plans, fair invigilation rosters, attendance sheets and the answer-book memo - ready to print.</p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <button className="btn-primary px-6 py-3 text-base" onClick={onSignIn}>
+                Sign in <Icon name="arrow" size={16} />
               </button>
-            )}
-            <button className="btn-ghost px-5 py-2.5" onClick={switchToLocalOnly}>
-              Try as a guest
-            </button>
+              {canRegister && (
+                <button className="btn-secondary px-6 py-3 text-base" onClick={onRegister}>
+                  Register your organization
+                </button>
+              )}
+              <button className="btn-ghost px-4 py-3 text-base" onClick={switchToLocalOnly}>
+                Try as a guest
+              </button>
+            </div>
+            <p className="mt-3 text-xs text-slate-500 max-w-md">Guest mode needs no account: your data stays in this browser only. You can copy it into an organization later.</p>
           </div>
-          <p className="mt-3 text-xs text-slate-500">Guest mode needs no account: your data stays in this browser only. You can copy it into an organization later.</p>
+          <div className="relative">
+            <div className="rounded-3xl bg-brand-900 p-5 sm:p-7 shadow-[8px_8px_0_0_theme(colors.pen.500)] -rotate-1">
+              <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.18em] text-brand-200/70 mb-4">
+                <span>Room B-12 · Sitting 1</span>
+                <span className="text-marker-300">0 clashes</span>
+              </div>
+              <SeatArt rows={6} cols={9} />
+              <div className="mt-4 flex gap-4 font-mono text-[10px] uppercase tracking-widest text-brand-200/70">
+                <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-sm bg-paper" /> CSE</span>
+                <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-sm bg-pen-500" /> ECE</span>
+                <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-sm bg-marker-300" /> MECH</span>
+              </div>
+            </div>
+          </div>
         </section>
-        <section className="grid sm:grid-cols-2 gap-4">
-          {features.map(([title, text]) => (
-            <div key={title} className="card p-5">
-              <div className="font-medium text-slate-900">{title}</div>
-              <div className="text-sm text-slate-600 mt-1">{text}</div>
+        <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {features.map(([n, title, text, tint]) => (
+            <div key={title} className="card p-5 flex flex-col">
+              <span className={`w-9 h-9 rounded-lg grid place-items-center font-mono text-xs font-semibold text-brand-900 ${tint}`}>{n}</span>
+              <div className="font-display text-lg font-semibold text-brand-900 mt-4 leading-snug">{title}</div>
+              <div className="text-sm text-slate-600 mt-2">{text}</div>
             </div>
           ))}
         </section>
-        <section className="mt-10 card p-5 text-sm text-slate-600">
-          <div className="font-medium text-slate-900 mb-1">How organizations work</div>
-          Register your college in a minute: you become its administrator and can add your exam cell, invigilators who mark attendance, and read-only viewers. Each organization's data is completely separate from every other.
+        <section className="mt-8 rounded-2xl bg-brand-900 text-paper p-6 sm:p-8 grid sm:grid-cols-[auto_1fr] gap-4 sm:gap-8 items-center">
+          <div className="font-display text-2xl font-semibold">How organizations work</div>
+          <p className="text-sm text-brand-100/80">Register your college in a minute: you become its administrator and can add your exam cell, invigilators who mark attendance, and read-only viewers. Each organization&apos;s data is completely separate from every other.</p>
         </section>
       </main>
     </div>
@@ -99,17 +120,18 @@ function Register({ onBack, onSignIn }: { onBack: () => void; onSignIn: () => vo
   const valid = form.name.trim() && /^[a-z0-9][a-z0-9-]{1,40}$/.test(form.code) && form.adminName.trim() && form.adminLogin.trim() && form.password.length >= 8 && form.again;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-      <form onSubmit={submit} className="card w-full max-w-lg p-6 space-y-4">
+    <AuthShell wide>
+      <form onSubmit={submit} className="w-full space-y-5">
         <div>
-          <div className="text-lg font-semibold text-slate-900">Register your organization</div>
-          <div className="text-sm text-slate-500">It is active straight away and you become its administrator.</div>
+          <div className="eyebrow mb-2">New organization</div>
+          <h1 className="text-3xl font-semibold text-brand-900 leading-tight">Register your college</h1>
+          <div className="text-sm text-slate-500 mt-1">It is active straight away and you become its administrator.</div>
         </div>
         <div className="grid sm:grid-cols-2 gap-3">
           <label className="block text-sm sm:col-span-2">
-            <span className="text-slate-600">Organization name *</span>
+            <span className="label">Organization name *</span>
             <input
-              className="input mt-1"
+              className="input"
               value={form.name}
               placeholder="e.g. S.I.E.T., Nilokheri"
               onChange={(e) => set({ name: e.target.value, ...(codeTouched ? {} : { code: slugify(e.target.value) }) })}
@@ -117,9 +139,9 @@ function Register({ onBack, onSignIn }: { onBack: () => void; onSignIn: () => vo
             />
           </label>
           <label className="block text-sm sm:col-span-2">
-            <span className="text-slate-600">Short code * (letters, digits, hyphens)</span>
+            <span className="label">Short code * (letters, digits, hyphens)</span>
             <input
-              className="input mt-1 font-mono"
+              className="input font-mono"
               value={form.code}
               onChange={(e) => {
                 setCodeTouched(true);
@@ -129,36 +151,36 @@ function Register({ onBack, onSignIn }: { onBack: () => void; onSignIn: () => vo
             />
           </label>
           <label className="block text-sm">
-            <span className="text-slate-600">Your name *</span>
-            <input className="input mt-1" value={form.adminName} onChange={(e) => set({ adminName: e.target.value })} />
+            <span className="label">Your name *</span>
+            <input className="input" value={form.adminName} onChange={(e) => set({ adminName: e.target.value })} />
           </label>
           <label className="block text-sm">
-            <span className="text-slate-600">Login (email or username) *</span>
-            <input className="input mt-1" value={form.adminLogin} onChange={(e) => set({ adminLogin: e.target.value })} autoCapitalize="none" autoComplete="username" />
+            <span className="label">Login (email or username) *</span>
+            <input className="input" value={form.adminLogin} onChange={(e) => set({ adminLogin: e.target.value })} autoCapitalize="none" autoComplete="username" />
           </label>
           <label className="block text-sm">
-            <span className="text-slate-600">Password * (8+ characters)</span>
-            <input className="input mt-1" type="password" value={form.password} onChange={(e) => set({ password: e.target.value })} autoComplete="new-password" />
+            <span className="label">Password * (8+ characters)</span>
+            <input className="input" type="password" value={form.password} onChange={(e) => set({ password: e.target.value })} autoComplete="new-password" />
           </label>
           <label className="block text-sm">
-            <span className="text-slate-600">Password again *</span>
-            <input className="input mt-1" type="password" value={form.again} onChange={(e) => set({ again: e.target.value })} autoComplete="new-password" />
+            <span className="label">Password again *</span>
+            <input className="input" type="password" value={form.again} onChange={(e) => set({ again: e.target.value })} autoComplete="new-password" />
           </label>
           <label className="block text-sm">
-            <span className="text-slate-600">Contact email</span>
-            <input className="input mt-1" value={form.contactEmail} onChange={(e) => set({ contactEmail: e.target.value })} />
+            <span className="label">Contact email</span>
+            <input className="input" value={form.contactEmail} onChange={(e) => set({ contactEmail: e.target.value })} />
           </label>
           <label className="block text-sm">
-            <span className="text-slate-600">Contact phone</span>
-            <input className="input mt-1" value={form.contactPhone} onChange={(e) => set({ contactPhone: e.target.value })} />
+            <span className="label">Contact phone</span>
+            <input className="input" value={form.contactPhone} onChange={(e) => set({ contactPhone: e.target.value })} />
           </label>
           <label className="block text-sm sm:col-span-2">
-            <span className="text-slate-600">Address</span>
-            <input className="input mt-1" value={form.address} onChange={(e) => set({ address: e.target.value })} />
+            <span className="label">Address</span>
+            <input className="input" value={form.address} onChange={(e) => set({ address: e.target.value })} />
           </label>
         </div>
-        {error && <div className="text-sm text-red-700">{error}</div>}
-        <button className="btn-primary w-full" disabled={busy || !valid}>
+        {error && <div className="text-sm text-pen-700 bg-pen-50 border border-pen-200 rounded-lg px-3 py-2">{error}</div>}
+        <button className="btn-primary w-full py-2.5" disabled={busy || !valid}>
           {busy ? 'Creating…' : 'Create organization'}
         </button>
         <div className="flex justify-between text-xs text-slate-500">
@@ -170,7 +192,7 @@ function Register({ onBack, onSignIn }: { onBack: () => void; onSignIn: () => vo
           </button>
         </div>
       </form>
-    </div>
+    </AuthShell>
   );
 }
 

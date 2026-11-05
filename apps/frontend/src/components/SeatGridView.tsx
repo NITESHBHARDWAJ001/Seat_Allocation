@@ -47,7 +47,7 @@ export default function SeatGridView({
         )}
         <div className="flex mb-1" style={headerPad}>
           {Array.from({ length: maxCols }, (_, i) => i + 1).map((c) => (
-            <div key={c} className="w-11 shrink-0 mx-0.5 text-center text-[10px] text-slate-400">
+            <div key={c} className="w-11 shrink-0 mx-0.5 text-center text-[10px] font-mono text-slate-400">
               {c}
             </div>
           ))}
@@ -55,7 +55,7 @@ export default function SeatGridView({
         {sortedRows.map(([rowIndex, seats]) => (
           <div key={rowIndex} className="flex items-center mb-1">
             {rowPrefix && <div className="w-44 shrink-0 mr-2">{rowPrefix(rowIndex)}</div>}
-            <div className="w-10 shrink-0 text-xs text-slate-400 text-right pr-2">R{rowIndex}</div>
+            <div className="w-10 shrink-0 text-[10px] font-mono text-slate-400 text-right pr-2">R{rowIndex}</div>
             {seats
               .slice()
               .sort((a, b) => a.col - b.col)
@@ -67,7 +67,7 @@ export default function SeatGridView({
                     type="button"
                     title={cell.title}
                     onClick={() => onSeatClick?.(seat)}
-                    className={`w-11 h-9 shrink-0 mx-0.5 rounded border text-[10px] leading-tight flex items-center justify-center font-medium ${cell.className}`}
+                    className={`w-11 h-9 shrink-0 mx-0.5 rounded-md border border-b-[3px] text-[10px] leading-tight flex items-center justify-center font-mono font-medium transition-transform hover:-translate-y-0.5 ${cell.className}`}
                   >
                     {cell.content}
                   </button>
